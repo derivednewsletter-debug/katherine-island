@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { DECORATION_TYPES, BASE_KINDS } from '../data/decorations';
+import { CROPS } from '../data/crops';
 
 // Base tools, plus shop-bought decorations appended as they're unlocked.
 // (Erase always stays last.)
@@ -72,10 +73,49 @@ export default function PlacementHud() {
       {placement.active && (
         <span style={{ fontSize: 12, opacity: 0.75, whiteSpace: 'nowrap' }}>
           {placement.tool === 'erase'
-            ? 'Click a decoration to remove it · Esc to exit'
-            : 'Click land to plant · Esc to exit'}
+            ? 'Click a decoration or crop to remove it · Esc to exit'
+            : placement.tool?.startsWith('crop:')
+              ? 'Green = right biome · click to plant · Esc to exit'
+              : 'Click land to plant · Esc to exit'}
         </span>
       )}
+
+      {/* ── Crop palette — biome-gated planting (separate row) ── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 'calc(100% + 8px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          background: 'rgba(0, 0, 0, 0.5)',
+          borderRadius: 12,
+          color: '#fff',
+          fontFamily: '"Segoe UI", system-ui, sans-serif',
+          backdropFilter: 'blur(8px)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span style={{ fontSize: 12, opacity: 0.8, marginRight: 2 }}>🌱 Plant</span>
+        {Object.values(CROPS).map((crop) => {
+          const tool = `crop:${crop.id}`;
+          const isActive = placement.active && placement.tool === tool;
+          return (
+            <button
+              key={crop.id}
+              className={isActive ? 'palette-btn active' : 'palette-btn'}
+              onClick={() => useGameStore.getState().togglePlacement(tool)}
+              title={`${crop.label} — ${crop.hint} · grows over the day`}
+            >
+              <span style={{ fontSize: 16 }}>{crop.emoji}</span>
+              <span className="palette-btn-label">{crop.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
+import { playPickupChime } from '../audio/sfx';
 
 const DURATION = 1.15; // total pop + flight time (seconds)
 const POP_END = 0.32; // fraction of the animation spent on the spawn pop
@@ -91,6 +92,8 @@ export default function Pickup({ resource, position, onDone }) {
 
     if (t >= 1) {
       doneRef.current = true;
+      // Little bell as the collectible lands on the counter
+      playPickupChime();
       onDone();
       return;
     }

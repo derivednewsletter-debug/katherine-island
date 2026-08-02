@@ -1,8 +1,11 @@
 /**
  * Pathfinding utilities for creature movement.
  *
- * The island is a small 14x14 grid, so a straightforward A* with a
- * Manhattan heuristic is more than fast enough and keeps the code readable.
+ * The island is a MASSIVE 160×160 grid, so the old linear-min-scan A*
+ * (fine at 14×14, quadratic-ish at 25K tiles) is replaced with a binary
+ * heap priority queue and a node-expansion cap. Roaming targets are picked
+ * from a bounded local window so pets wander near home instead of across
+ * the map, and never scan the whole grid per stroll.
  */
 import { GRID_SIZE, getTile, isWalkable } from '../data/mapData';
 
@@ -14,6 +17,55 @@ const DIRS = [
 ];
 
 const key = (row, col) => `${row},${col}`;
+
+/** Hard cap on A* node expansions so a pathological route can't stall a
+ *  frame loop. ~25K tiles → even a worst-case 200-tile trek expands well
+ *  under this; hitting it just means "no path" for that attempt. */
+const MAX_EXPANSIONS = 30000;
+
+/** Min binary heap keyed on node.f (A* priority). */
+class MinHeap {
+  constructor() {
+    this.data = [];
+  }
+  get size() {
+    return this.data.length;
+  }
+  isEmpty() {
+    return this.data.length === 0;
+  }
+  push(node) {
+    const d = this.data;
+    d.push(node);
+    let i = d.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (d[parent].f <= d[i].f) break;
+      [d[parent], d[i]] = [d[i], d[parent]];
+      i = parent;
+    }
+  }
+  pop() {
+    const d = this.data;
+    const top = d[0];
+    const last = d.pop();
+    if (d.length > 0) {
+      d[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let smallest = i;
+        if (l < d.length && d[l].f < d[smallest].f) smallest = l;
+        if (r < d.length && d[r].f < d[smallest].f) smallest = r;
+        if (smallest === i) break;
+        [d[smallest], d[i]] = [d[i], d[smallest]];
+        i = smallest;
+      }
+    }
+    return top;
+  }
+}
 
 /**
  * A* search for a path between two grid cells.
@@ -30,70 +82,59 @@ export function findPath(startRow, startCol, endRow, endCol, isBlocked) {
   if (!isWalkable(targetTile)) return [];
   if (isBlocked && isBlocked(endRow, endCol)) return [];
 
-  const openSet = new Map(); // key -> node
-  const closedSet = new Set();
+  const startKey = key(startRow, startCol);
+  const goalKey = key(endRow, endCol);
+  const heap = new MinHeap();
+  const gScore = new Map([[startKey, 0]]);
+  const parent = new Map();
+  let expansions = 0;
 
-  const start = {
+  heap.push({
+    f: manhattan(startRow, startCol, endRow, endCol),
+    g: 0,
     row: startRow,
     col: startCol,
-    g: 0,
-    h: manhattan(startRow, startCol, endRow, endCol),
-    f: 0,
-    parent: null,
-  };
-  start.f = start.g + start.h;
-  openSet.set(key(startRow, startCol), start);
+    k: startKey,
+  });
 
-  while (openSet.size > 0) {
-    // Pick the open node with the lowest f score
-    let current = null;
-    let currentKey = null;
-    for (const [k, node] of openSet) {
-      if (!current || node.f < current.f) {
-        current = node;
-        currentKey = k;
-      }
-    }
+  while (!heap.isEmpty()) {
+    const node = heap.pop();
+    // Skip stale heap entries (a better route already reached this cell)
+    if (gScore.get(node.k) !== node.g) continue;
 
-    if (current.row === endRow && current.col === endCol) {
-      // Reconstruct path
+    if (node.k === goalKey) {
       const path = [];
-      let node = current;
-      while (node.parent) {
-        path.unshift({ row: node.row, col: node.col });
-        node = node.parent;
+      let k = node.k;
+      while (k !== startKey) {
+        const [r, c] = k.split(',').map(Number);
+        path.unshift({ row: r, col: c });
+        k = parent.get(k);
       }
       return path;
     }
 
-    openSet.delete(currentKey);
-    closedSet.add(currentKey);
+    if (++expansions > MAX_EXPANSIONS) return [];
 
     for (const [dr, dc] of DIRS) {
-      const row = current.row + dr;
-      const col = current.col + dc;
-
+      const row = node.row + dr;
+      const col = node.col + dc;
       if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) continue;
-      if (closedSet.has(key(row, col))) continue;
-
       const tile = getTile(row, col);
       if (!isWalkable(tile)) continue;
       if (isBlocked && isBlocked(row, col)) continue;
 
-      const g = current.g + 1;
-      const existing = openSet.get(key(row, col));
-
-      if (!existing || g < existing.g) {
-        const h = manhattan(row, col, endRow, endCol);
-        openSet.set(key(row, col), {
-          row,
-          col,
-          g,
-          h,
-          f: g + h,
-          parent: current,
-        });
-      }
+      const nk = key(row, col);
+      const g = node.g + 1;
+      if (g >= (gScore.get(nk) ?? Infinity)) continue;
+      gScore.set(nk, g);
+      parent.set(nk, node.k);
+      heap.push({
+        f: g + manhattan(row, col, endRow, endCol),
+        g,
+        row,
+        col,
+        k: nk,
+      });
     }
   }
 
@@ -101,18 +142,32 @@ export function findPath(startRow, startCol, endRow, endCol, isBlocked) {
 }
 
 /**
- * Pick a random walkable, unblocked tile at least `minDistance` (Manhattan)
- * cells away from the given position. Returns { row, col } or null if none.
- * Optional `isBlocked(row, col)` excludes cells holding decorations.
+ * Pick a random walkable, unblocked tile between `minDistance` and
+ * `maxDistance` (Manhattan) cells away — a LOCAL wander so pets roam the
+ * neighborhood instead of teleporting across a 160-wide island. Only the
+ * bounded window around the start is scanned (never the whole grid).
+ * Returns { row, col } or null if none.
  */
-export function getRandomWalkableTarget(startRow, startCol, minDistance = 3, isBlocked) {
+export function getRandomWalkableTarget(
+  startRow,
+  startCol,
+  minDistance = 3,
+  isBlocked,
+  maxDistance = 24
+) {
+  const r0 = Math.max(0, startRow - maxDistance);
+  const r1 = Math.min(GRID_SIZE - 1, startRow + maxDistance);
+  const c0 = Math.max(0, startCol - maxDistance);
+  const c1 = Math.min(GRID_SIZE - 1, startCol + maxDistance);
+
   const candidates = [];
-  for (let row = 0; row < GRID_SIZE; row++) {
-    for (let col = 0; col < GRID_SIZE; col++) {
+  for (let row = r0; row <= r1; row++) {
+    for (let col = c0; col <= c1; col++) {
       const tile = getTile(row, col);
       if (!isWalkable(tile)) continue;
       if (isBlocked && isBlocked(row, col)) continue;
-      if (manhattan(row, col, startRow, startCol) < minDistance) continue;
+      const dist = manhattan(row, col, startRow, startCol);
+      if (dist < minDistance) continue;
       candidates.push({ row, col });
     }
   }

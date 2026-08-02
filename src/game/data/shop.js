@@ -1,17 +1,22 @@
 /**
  * Shop catalog.
  *
- * Two kinds of items:
+ * Three kinds of items:
  *  - 'decoration': unlocks a NEW build-palette tool (a one-time purchase
  *    that adds the exotic prop to the placement bar).
  *  - 'upgrade': a permanent passive perk stored in `upgrades`.
+ *  - 'egg': a pet egg (repeatable purchase) — place it on the island and
+ *    it hatches into a new pet after EGG_HATCH_MS of real time.
  *
  * Prices are keyed by resource id ({ berry, shell, stone }) so items can
  * cost a mix of gathered goods.
  */
+import { PET_SPECIES } from './species';
 
-/** Where the 3D shop kiosk sits on the island (grid row/col). */
-export const KIOSK_TILE = { row: 9, col: 5 };
+// The shop kiosk's tile is chosen programmatically by the procedural map
+// generator (nearest roomy sand tile to spawn). Re-exported so every
+// existing `import { KIOSK_TILE } from './shop'` keeps working.
+export { KIOSK_TILE } from './mapData';
 
 export const SHOP_ITEMS = [
   {
@@ -62,6 +67,17 @@ export const SHOP_ITEMS = [
     desc: 'All needs drain 25% slower — a comfier life.',
     price: { berry: 6, shell: 6, stone: 6 },
   },
+
+  // ── Pet eggs (repeatable purchase; place on the island to hatch) ──
+  ...Object.entries(PET_SPECIES).map(([id, sp]) => ({
+    id: `egg:${id}`,
+    kind: 'egg',
+    species: id,
+    name: `${sp.label} Egg`,
+    emoji: sp.emoji,
+    desc: 'Place it on the island — it hatches into a new pet after 10 real minutes.',
+    price: sp.price,
+  })),
 ];
 
 /** Find an item by id. */

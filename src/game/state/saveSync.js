@@ -17,6 +17,7 @@
  *    using localStorage, exactly as before.
  */
 import { useGameStore, SAVE_VERSION } from './gameStore';
+import { mergeDecorations, generateInitialDecorations } from '../data/decorations';
 
 const PLAYER_KEY = 'katherine-player-id';
 const SAVE_KEY = 'katherine-island-save'; // must match persist name in gameStore
@@ -133,7 +134,15 @@ export function startSaveSync() {
       state.carePoints !== prev.carePoints ||
       state.upgrades !== prev.upgrades ||
       state.unlockedDecorations !== prev.unlockedDecorations ||
-      state.decorations !== prev.decorations;
+      state.decorations !== prev.decorations ||
+      state.ownedEggs !== prev.ownedEggs ||
+      state.placedEggs !== prev.placedEggs ||
+      state.pets !== prev.pets ||
+      state.namingPetId !== prev.namingPetId ||
+      state.selectedPetId !== prev.selectedPetId ||
+      state.quests !== prev.quests ||
+      state.crops !== prev.crops ||
+      state.time !== prev.time;
     if (!sliceChanged) return;
 
     clearTimeout(pushTimer);
@@ -177,13 +186,29 @@ export async function syncSaveFromCloud() {
   const { __saveVersion: _stamp, ...state } = remote.state;
   const current = useGameStore.getState();
   useGameStore.setState({
+    time: state.time ?? current.time,
     inventory: state.inventory ?? current.inventory,
     needs: state.needs ?? current.needs,
     stage: state.stage ?? current.stage,
     carePoints: state.carePoints ?? current.carePoints,
     upgrades: state.upgrades ?? current.upgrades,
     unlockedDecorations: state.unlockedDecorations ?? current.unlockedDecorations,
-    decorations: state.decorations ?? current.decorations,
+    // The deterministic scatter is NOT stored in saves; re-merge the
+    // regenerated scatter with the remote player's planted props/erases.
+    plantedDecorations: state.plantedDecorations ?? current.plantedDecorations,
+    removedScatterCells: state.removedScatterCells ?? current.removedScatterCells,
+    decorations: mergeDecorations(
+      generateInitialDecorations(),
+      state.plantedDecorations ?? current.plantedDecorations,
+      state.removedScatterCells ?? current.removedScatterCells
+    ),
+    ownedEggs: state.ownedEggs ?? current.ownedEggs,
+    placedEggs: state.placedEggs ?? current.placedEggs,
+    pets: state.pets ?? current.pets,
+    namingPetId: state.namingPetId ?? current.namingPetId,
+    selectedPetId: state.selectedPetId ?? current.selectedPetId,
+    quests: state.quests ?? current.quests,
+    crops: state.crops ?? current.crops,
   });
   // The persist middleware re-saves the applied state locally; mark the
   // cloud as in-sync so a reload doesn't re-apply it.

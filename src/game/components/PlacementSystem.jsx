@@ -2,12 +2,15 @@ import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useCursor } from '@react-three/drei';
-import { worldToGrid, gridToWorld, getTile } from '../data/mapData';
+import { worldToGrid, gridToWorld, getTile, GRID_SIZE } from '../data/mapData';
 import { canPlaceDecoration } from '../data/decorations';
 import { KIOSK_TILE } from '../data/shop';
-import { useGameStore } from '../state/gameStore';
+import { useGameStore, canPlaceEggTile } from '../state/gameStore';
 import { TILE_THICKNESS } from './Tile';
 import { KIND_COMPONENT } from './Decorations';
+import { EggModel } from './Egg';
+import { PET_SPECIES } from '../data/species';
+import { CropPreview } from './Crops';
 
 const GHOST_COLORS = {
   valid: '#4ade80', // green: the click will plant (or erase)
@@ -44,8 +47,26 @@ export default function PlacementSystem() {
   /** Is a click on this cell going to do something useful with `tool`? */
   const isActionable = (toolId, s, row, col) => {
     if (toolId === 'erase') {
-      return s.decorations.some((d) => d.row === row && d.col === col);
+      // Eraser removes decorations OR crops
+      return (
+        s.decorations.some((d) => d.row === row && d.col === col) ||
+        s.crops.some((c) => c.row === row && c.col === col)
+      );
     }
+    if (toolId === 'egg') {
+      // Egg placement also refuses tiles holding a hatched pet or another
+      // egg — canPlaceEggTile handles all of that.
+      return canPlaceEggTile(s, row, col);
+    }
+    if (typeof toolId === 'string' && toolId.startsWith('crop:')) {
+      // Crop ghosts are biome-gated: green only on the crop's biomes
+      return s.canPlantCrop(row, col, toolId.slice(5));
+    }
+    // Decoration ghosts turn red over incubating eggs, hatched pets, and
+    // planted crops (placeDecoration refuses those tiles — match it).
+    if (s.placedEggs.some((e) => e.row === row && e.col === col)) return false;
+    if (s.pets.some((p) => p.pos && p.pos.row === row && p.pos.col === col)) return false;
+    if (s.crops.some((c) => c.row === row && c.col === col)) return false;
     return canPlaceDecoration(s.decorations, row, col, s.creaturePos, KIOSK_TILE);
   };
 
@@ -77,14 +98,30 @@ export default function PlacementSystem() {
     const { row, col } = worldToGrid(e.point.x, e.point.z);
     const s = useGameStore.getState();
     if (!isActionable(tool, s, row, col)) return;
-    if (tool === 'erase') s.removeDecoration(row, col);
-    else s.placeDecoration(tool, row, col);
+    if (tool === 'erase') {
+      s.removeDecoration(row, col);
+      s.removeCrop(row, col);
+    } else if (tool === 'egg') {
+      s.placeEgg(row, col);
+    } else if (typeof tool === 'string' && tool.startsWith('crop:')) {
+      s.plantCrop(tool.slice(5), row, col);
+    } else {
+      s.placeDecoration(tool, row, col);
+    }
   };
 
   // Erase mode is derived from the live tool (not stale hover state), so
   // switching tools mid-hover can't resolve KIND_COMPONENT to undefined.
   const isErase = tool === 'erase';
-  const Ghost = !isErase ? KIND_COMPONENT[tool] : null;
+  const isEgg = tool === 'egg';
+  const isCrop = typeof tool === 'string' && tool.startsWith('crop:');
+  const cropId = isCrop ? tool.slice(5) : null;
+  // Which species the pending egg is (for the ghost's colors)
+  const eggSpecies =
+    isEgg && useGameStore.getState().placement.eggId
+      ? useGameStore.getState().ownedEggs.find((e) => e.id === useGameStore.getState().placement.eggId)?.species ?? 'bunny'
+      : null;
+  const Ghost = !isErase && !isEgg && !isCrop ? KIND_COMPONENT[tool] : null;
 
   return (
     <group>
@@ -97,7 +134,7 @@ export default function PlacementSystem() {
         onPointerOut={() => setHover(null)}
         onClick={handleClick}
       >
-        <planeGeometry args={[200, 200]} />
+        <planeGeometry args={[GRID_SIZE * 3, GRID_SIZE * 3]} />
       </mesh>
 
       {/* Ghost preview under the cursor */}
@@ -124,6 +161,22 @@ export default function PlacementSystem() {
                 opacity={hover.valid ? 0.85 : 0.35}
               />
             </mesh>
+          ) : isEgg ? (
+            /* Egg ghost — tinted shell under the cursor */
+            <group ref={ghostRef} scale={GHOST_SCALE}>
+              <EggModel
+                species={eggSpecies ?? 'bunny'}
+                tint={hover.valid ? GHOST_COLORS.valid : GHOST_COLORS.blocked}
+              />
+            </group>
+          ) : isCrop ? (
+            /* Crop ghost — tinted sapling, green only on the crop's biomes */
+            <group ref={ghostRef} scale={GHOST_SCALE}>
+              <CropPreview
+                cropId={cropId}
+                tint={hover.valid ? GHOST_COLORS.valid : GHOST_COLORS.blocked}
+              />
+            </group>
           ) : (
             /* Tinted ghost of the selected prop, gently spinning */
             Ghost && (

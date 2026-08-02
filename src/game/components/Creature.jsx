@@ -2,24 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { gridToWorld, worldToGrid, getTile, BED_SPOT } from '../data/mapData';
+import { gridToWorld, worldToGrid, getTile, BED_SPOT, SPAWN_POINT } from '../data/mapData';
 import { findPath, getRandomWalkableTarget } from '../ai/pathfinding';
-import { useGameStore, moodFromNeeds, MOODS, timeOfDay } from '../state/gameStore';
+import { useGameStore, moodFromNeeds, MOODS, timeOfDay, FEED_BY_RESOURCE } from '../state/gameStore';
 import { TILE_THICKNESS } from './Tile';
+import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts } from './petParts';
+import { playEvolutionFanfare } from '../audio/sfx';
 
 const WALK_SPEED = 1.6; // tiles per second
-const HEART_COUNT = 6;
 const SPARK_COUNT = 26;
 const SPARK_COLORS = ['#ffd166', '#ff9fb6', '#a3e4ff', '#ffe9a8'];
-
-// Mood → movement speed multiplier (a tired pet shuffles, a happy one bounds)
-const MOOD_SPEED = {
-  happy: 1.25,
-  content: 1,
-  hungry: 0.85,
-  tired: 0.6,
-  sad: 0.75,
-};
 
 /**
  * Per-stage look: babies are small + pastel; adults are bigger with the
@@ -110,9 +102,9 @@ export default function Creature() {
   const prevStageRef = useRef(stage);
   const evolvePulse = useRef(0); // 1 → 0 celebration scale pop
 
-  // Start on a grass tile near the island center
-  const start = gridToWorld(6, 6);
-  const startY = surfaceHeightAt(6, 6);
+  // Start in the procedural spawn clearing (roomy grass near the center)
+  const start = gridToWorld(SPAWN_POINT.row, SPAWN_POINT.col);
+  const startY = surfaceHeightAt(SPAWN_POINT.row, SPAWN_POINT.col);
 
   // Internal animation state (refs so per-frame updates don't re-render React)
   const state = useRef({
@@ -128,16 +120,7 @@ export default function Creature() {
   });
 
   // Hearts particle pool (avoid mount/unmount churn)
-  const hearts = useRef(
-    Array.from({ length: HEART_COUNT }, () => ({
-      active: false,
-      life: 0,
-      maxLife: 1,
-      vy: 0,
-      scale: 1,
-      offset: new THREE.Vector3(),
-    }))
-  ).current;
+  const hearts = useRef(makeHearts()).current;
 
   // Evolution spark particle pool
   const sparks = useRef(
@@ -153,19 +136,7 @@ export default function Creature() {
     }))
   ).current;
 
-  const heartGeometry = useMemo(() => {
-    const shape = new THREE.Shape();
-    shape.moveTo(0.5, 0.5);
-    shape.bezierCurveTo(0.5, 0.5, 0.4, 0, 0, 0);
-    shape.bezierCurveTo(-0.6, 0, -0.6, 0.7, -0.6, 0.7);
-    shape.bezierCurveTo(-0.6, 1.1, -0.3, 1.54, 0.5, 1.9);
-    shape.bezierCurveTo(1.2, 1.54, 1.6, 1.1, 1.6, 0.7);
-    shape.bezierCurveTo(1.6, 0.7, 1.6, 0, 1, 0);
-    shape.bezierCurveTo(0.7, 0, 0.5, 0.5, 0.5, 0.5);
-    const geometry = new THREE.ShapeGeometry(shape);
-    geometry.scale(0.07, 0.07, 0.07);
-    return geometry;
-  }, []);
+  const heartGeometry = useMemo(() => makeHeartGeometry(), []);
 
   const heartMaterials = useMemo(
     () =>
@@ -207,6 +178,7 @@ export default function Creature() {
 
   /** Evolution celebration: scale pop, spark burst, ring flash, bubble. */
   const triggerEvolution = () => {
+    playEvolutionFanfare(); // rising sparkle arpeggio
     evolvePulse.current = 1;
     setBubble('I grew up! 🎉');
     bubbleTimer.current = 2;
@@ -266,7 +238,7 @@ export default function Creature() {
     const gridPos = worldToGrid(s.pos.x, s.pos.z);
     // Tiles holding decorations are impassable — route around them
     const blocked = (row, col) => useGameStore.getState().isTileBlocked(row, col);
-    const target = getRandomWalkableTarget(gridPos.row, gridPos.col, 2, blocked);
+    const target = getRandomWalkableTarget(gridPos.row, gridPos.col, 2, blocked, 24);
     if (!target) {
       s.timer = 2;
       return;
@@ -335,6 +307,9 @@ export default function Creature() {
   const handlePet = (e) => {
     e.stopPropagation();
 
+    // Clicking the starter selects it for the needs HUD (pet selector).
+    useGameStore.getState().selectPet('starter');
+
     // A sleeping pet can't be petted — just a gentle hush.
     if (useGameStore.getState().sleeping) {
       setBubble('shh… 💤');
@@ -342,17 +317,20 @@ export default function Creature() {
       return;
     }
 
-    // Feeding beats petting while a berry is held: munch, hearts, bubble.
-    if (useGameStore.getState().holding === 'berry') {
-      const fed = useGameStore.getState().feedPet();
+    // Feeding beats petting while a feedable treat is held: munch, hearts,
+    // bubble. Feed THIS pet (the starter) — not whatever the HUD selected.
+    const held = useGameStore.getState().holding;
+    if (held && FEED_BY_RESOURCE[held]) {
+      const fed = useGameStore.getState().feedPet('starter');
       if (fed) {
         munchPulse.current = 1;
         petPause.current = 0.9; // stop and enjoy the treat
         setBubble('yum yum! 🍓');
         bubbleTimer.current = 1.6;
         burstHearts();
+        useGameStore.getState().recordQuestProgress('feed', 1);
       } else {
-        setBubble('no berries left…');
+        setBubble('no treats left…');
         bubbleTimer.current = 1.4;
       }
       return;
@@ -363,6 +341,7 @@ export default function Creature() {
     bubbleTimer.current = 1.5;
     useGameStore.getState().boostNeed('happiness', 8);
     useGameStore.getState().addCare(1);
+    useGameStore.getState().recordQuestProgress('pet', 1);
     burstHearts();
   };
 

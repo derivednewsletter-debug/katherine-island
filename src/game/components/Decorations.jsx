@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import InstancedField from './InstancedField';
 import { useGameStore } from '../state/gameStore';
 
 /**
@@ -161,27 +162,78 @@ export const KIND_COMPONENT = {
 };
 
 /**
+ * Part descriptors for INSTANCED rendering — the React components above are
+ * kept for the one-at-a-time placement ghost; the full scatter/planted
+ * population renders as shared InstancedMeshes (one per part) so thousands
+ * of props cost only ~25 draw calls.
+ */
+const PARTS = {
+  palm: [
+    { geom: 'cylinder', args: [0.045, 0.07, 0.6, 6], pos: [0, 0.28, 0], rot: [0, 0, -0.12], color: '#b0885a' },
+    ...[0, 1, 2, 3, 4, 5].map((i) => {
+      const angle = (i / 6) * Math.PI * 2;
+      return {
+        geom: 'cone',
+        args: [0.045, 0.26, 5],
+        pos: [Math.cos(angle) * 0.06, 0.6, Math.sin(angle) * 0.06],
+        rot: [Math.sin(angle) * -0.7, 0, Math.cos(angle) * -0.7],
+        color: i % 2 === 0 ? '#3f9e4d' : '#57b95f',
+      };
+    }),
+    { geom: 'sphere', args: [0.055, 8, 8], pos: [0, 0.56, 0], rot: [0, 0, 0], color: '#8a5a2b' },
+  ],
+  rock: [
+    { geom: 'icosa', args: [0.16, 0], pos: [0, 0.09, 0], rot: [0, 0, 0], color: '#9aa3ab' },
+    { geom: 'icosa', args: [0.098, 0], pos: [0.13, 0.05, 0.08], rot: [0, 0, 0], color: '#aeb7bf' },
+    { geom: 'icosa', args: [0.065, 0], pos: [-0.12, 0.03, -0.06], rot: [0, 0, 0], color: '#88939c' },
+  ],
+  flower: [
+    { geom: 'cylinder', args: [0.012, 0.02, 0.2, 5], pos: [0, 0.1, 0], rot: [0, 0, 0], color: '#4c9e4f' },
+    ...[0, 1, 2, 3, 4].map((i) => {
+      const angle = (i / 5) * Math.PI * 2;
+      return {
+        geom: 'sphere',
+        args: [0.028, 8, 8],
+        pos: [Math.cos(angle) * 0.045, 0.21, Math.sin(angle) * 0.045],
+        rot: [0, 0, 0],
+        color: '#ff9eb0',
+      };
+    }),
+    { geom: 'sphere', args: [0.03, 8, 8], pos: [0, 0.22, 0], rot: [0, 0, 0], color: '#ffd166' },
+  ],
+  fountain: [
+    { geom: 'cylinder', args: [0.2, 0.24, 0.14, 10], pos: [0, 0.08, 0], rot: [0, 0, 0], color: '#b9c2cc' },
+    { geom: 'sphere', args: [0.15, 10, 8], pos: [0, 0.16, 0], rot: [0, 0, 0], color: '#5fc3e8' },
+    { geom: 'cylinder', args: [0.03, 0.05, 0.28, 8], pos: [0, 0.32, 0], rot: [0, 0, 0], color: '#8fd9f0' },
+    { geom: 'sphere', args: [0.045, 8, 6], pos: [0, 0.47, 0], rot: [0, 0, 0], color: '#bfeefc' },
+  ],
+  lantern: [
+    { geom: 'cylinder', args: [0.02, 0.03, 0.34, 6], pos: [0, 0.16, 0], rot: [0, 0, 0], color: '#8a6a4a' },
+    { geom: 'sphere', args: [0.07, 10, 8], pos: [0, 0.38, 0], rot: [0, 0, 0], color: '#ffcf6e' },
+    { geom: 'cone', args: [0.06, 0.08, 6], pos: [0, 0.47, 0], rot: [0, 0, 0], color: '#6b4a2a' },
+  ],
+};
+
+/**
  * Renders every decoration on the island — the seeded scatter plus anything
- * the player plants — from the global store. Plants are solid (they block
- * the pet's path), so no separate "scatter" pass is needed.
+ * the player plants — as shared instanced meshes (see InstancedField).
  */
 export default function Decorations() {
   const decorations = useGameStore((s) => s.decorations);
 
+  const grouped = useMemo(() => {
+    const g = { palm: [], rock: [], flower: [], fountain: [], lantern: [] };
+    for (const d of decorations) {
+      if (g[d.kind]) g[d.kind].push(d);
+    }
+    return g;
+  }, [decorations]);
+
   return (
     <group>
-      {decorations.map((item) => {
-        const Comp = KIND_COMPONENT[item.kind];
-        if (!Comp) return null;
-        return (
-          <Comp
-            key={item.id}
-            position={[item.x, item.y, item.z]}
-            rotation={[0, item.rot, 0]}
-            scale={item.scale}
-          />
-        );
-      })}
+      {Object.entries(PARTS).map(([kind, parts]) => (
+        <InstancedField key={kind} entries={grouped[kind] ?? []} parts={parts} />
+      ))}
     </group>
   );
 }

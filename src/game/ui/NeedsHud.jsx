@@ -1,5 +1,7 @@
 import React from 'react';
-import { useGameStore, moodFromNeeds, MOODS, growthInfo, timeOfDay } from '../state/gameStore';
+import { useGameStore, moodFromNeeds, MOODS, growthInfo, timeOfDay, FEED_BY_RESOURCE } from '../state/gameStore';
+import { PET_SPECIES } from '../data/species';
+import { RESOURCES } from '../data/resources';
 
 const BARS = [
   { key: 'hunger', label: 'Hunger', emoji: '🍗', color: '#ff9f43' },
@@ -10,36 +12,88 @@ const BARS = [
 /**
  * Creature needs HUD — three animated bars (hunger/energy/happiness) plus
  * the current mood emoji, in the same glass style as the other HUD chips.
+ *
+ * Multi-pet aware: the top row lists every pet (the starter + each hatched
+ * pet); the panel shows whichever is selected, and the feed button feeds
+ * that pet. Clicking a pet in-world also selects it.
  */
 export default function NeedsHud() {
+  const selectedPetId = useGameStore((s) => s.selectedPetId);
+  const isStarter = selectedPetId === 'starter';
+
   // Subscribe to rounded values so the panel only re-renders when a
   // displayed number actually changes (the bars' CSS transition smooths
   // the gaps). Mood is a string selector — also re-renders only on change.
-  const hunger = useGameStore((s) => Math.round(s.needs.hunger));
-  const energy = useGameStore((s) => Math.round(s.needs.energy));
-  const happiness = useGameStore((s) => Math.round(s.needs.happiness));
-  const mood = useGameStore((s) =>
-    moodFromNeeds(s.needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay)
+  const hunger = useGameStore((s) =>
+    isStarter
+      ? Math.round(s.needs.hunger)
+      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.hunger ?? 100)
   );
-  const sleeping = useGameStore((s) => s.sleeping);
+  const energy = useGameStore((s) =>
+    isStarter
+      ? Math.round(s.needs.energy)
+      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.energy ?? 100)
+  );
+  const happiness = useGameStore((s) =>
+    isStarter
+      ? Math.round(s.needs.happiness)
+      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.happiness ?? 100)
+  );
+  const mood = useGameStore((s) => {
+    const needs = isStarter
+      ? s.needs
+      : s.pets.find((p) => p.id === s.selectedPetId)?.needs ?? s.needs;
+    return moodFromNeeds(needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay);
+  });
+  const sleeping = useGameStore((s) =>
+    isStarter ? s.sleeping : s.pets.find((p) => p.id === s.selectedPetId)?.sleeping ?? false
+  );
   const needs = { hunger, energy, happiness };
+
+  // Selected pet's display name + emoji (for the header + selector chips)
+  const petName = useGameStore((s) => {
+    if (isStarter) return 'My pet';
+    const p = s.pets.find((x) => x.id === s.selectedPetId);
+    return p?.name ?? 'Pet';
+  });
+  const petEmoji = useGameStore((s) => {
+    if (isStarter) return '🐾';
+    const p = s.pets.find((x) => x.id === s.selectedPetId);
+    return p ? PET_SPECIES[p.species]?.emoji ?? '🐾' : '🐾';
+  });
+
+  // Pet roster for the selector chips: [{ id, emoji, name }] for starter +
+  // every hatched pet. Serialized to a stable string so the selector only
+  // re-renders when a pet is added/renamed (names can contain any char).
+  const roster = useGameStore((s) => {
+    const starter = { id: 'starter', emoji: '🐾', name: 'My pet' };
+    const pets = s.pets.map((p) => ({
+      id: p.id,
+      emoji: PET_SPECIES[p.species]?.emoji ?? '🐾',
+      name: p.name,
+    }));
+    return JSON.stringify([starter, ...pets]);
+  });
+  const chips = JSON.parse(roster || '[]');
 
   // While asleep the mood header shows the sleeping face instead of mood.
   const moodEmoji = sleeping ? '💤' : MOODS[mood].emoji;
   const moodLabel = sleeping ? 'Sleeping' : MOODS[mood].label;
 
-  // Growth stage + progress toward the next evolution. carePoints is floored
-  // so the panel only re-renders when the displayed number changes (it's a
-  // float that trickles up every tick while the pet is well-cared-for).
-  const stage = useGameStore((s) => s.stage);
-  const carePoints = useGameStore((s) => Math.floor(s.carePoints));
-  const growth = growthInfo(stage, carePoints);
+  // Growth stage + progress — only the starter evolves; hatched pets have
+  // no growth bar (they're full-grown friends).
+  const stage = useGameStore((s) => (isStarter ? s.stage : null));
+  const carePoints = useGameStore((s) => (isStarter ? Math.floor(s.carePoints) : 0));
+  const growth = isStarter ? growthInfo(stage, carePoints) : null;
 
-  // Berries available for feeding (rounded so the button only re-renders
-  // when the displayed count changes).
-  const berries = useGameStore((s) => s.inventory.berry);
+  // Feedable treats: whichever resource is held wins; otherwise default to
+  // berries when any are available.
   const holding = useGameStore((s) => s.holding);
-  const feed = () => useGameStore.getState().feedPet();
+  const berries = useGameStore((s) => s.inventory.berry);
+  const heldFeedable = holding && FEED_BY_RESOURCE[holding] ? holding : null;
+  const feedResource = heldFeedable ?? (berries >= 1 ? 'berry' : null);
+  const feedEmoji = feedResource ? (RESOURCES[feedResource]?.emoji ?? '🍓') : '🍓';
+  const feed = () => useGameStore.getState().feedPet(selectedPetId);
 
   return (
     <div
@@ -57,17 +111,64 @@ export default function NeedsHud() {
         fontFamily: '"Segoe UI", system-ui, sans-serif',
         fontSize: 12,
         backdropFilter: 'blur(8px)',
-        pointerEvents: 'none',
         boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
         minWidth: 150,
+        maxWidth: 210,
       }}
     >
+      {/* Pet selector — click to swap whose needs this panel shows */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          paddingBottom: 6,
+          borderBottom: '1px solid rgba(255,255,255,0.15)',
+        }}
+      >
+        {chips.map((chip) => {
+          const active = chip.id === selectedPetId;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => useGameStore.getState().selectPet(chip.id)}
+              title={`Show ${chip.name}'s needs`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 8px',
+                borderRadius: 999,
+                border: active ? '1px solid rgba(126,232,250,0.8)' : '1px solid rgba(255,255,255,0.18)',
+                background: active ? 'rgba(126,232,250,0.2)' : 'rgba(255,255,255,0.06)',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: active ? 800 : 600,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                transition: 'background 0.15s',
+                maxWidth: 130,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>{chip.emoji}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{chip.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Mood header — sleeping face while the pet sleeps */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ fontSize: 16 }}>{petEmoji}</span>
         <span className={sleeping ? 'sleep-emoji' : undefined} style={{ fontSize: 16 }}>
           {moodEmoji}
         </span>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>{moodLabel}</span>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>{petName}</span>
+        <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600 }}>· {moodLabel}</span>
       </div>
 
       {BARS.map((bar) => {
@@ -106,7 +207,7 @@ export default function NeedsHud() {
         );
       })}
 
-      {/* Growth stage + progress toward the next evolution */}
+      {/* Growth stage + progress toward the next evolution (starter only) */}
       {growth && (
         <div
           style={{
@@ -155,28 +256,30 @@ export default function NeedsHud() {
         </div>
       )}
 
-      {/* Feed the pet a berry (fast path; holding the berry chip works too) */}
+      {/* Feed the selected pet a treat (fast path; holding a chip works too) */}
       <button
         onClick={feed}
-        disabled={berries < 1}
+        disabled={!feedResource}
         style={{
           marginTop: 6,
           padding: '5px 10px',
           borderRadius: 999,
-          border: `1px solid ${berries >= 1 ? 'rgba(255,93,126,0.6)' : 'rgba(255,255,255,0.2)'}`,
-          background: berries >= 1 ? 'rgba(255,93,126,0.22)' : 'rgba(255,255,255,0.08)',
-          color: berries >= 1 ? '#ffd6de' : 'rgba(255,255,255,0.45)',
+          border: `1px solid ${feedResource ? 'rgba(255,93,126,0.6)' : 'rgba(255,255,255,0.2)'}`,
+          background: feedResource ? 'rgba(255,93,126,0.22)' : 'rgba(255,255,255,0.08)',
+          color: feedResource ? '#ffd6de' : 'rgba(255,255,255,0.45)',
           fontFamily: '"Segoe UI", system-ui, sans-serif',
           fontSize: 12,
           fontWeight: 700,
-          cursor: berries >= 1 ? 'pointer' : 'not-allowed',
+          cursor: feedResource ? 'pointer' : 'not-allowed',
           pointerEvents: 'auto',
           transition: 'background 0.2s, transform 0.15s',
         }}
-        onMouseEnter={(e) => berries >= 1 && (e.currentTarget.style.background = 'rgba(255,93,126,0.35)')}
-        onMouseLeave={(e) => berries >= 1 && (e.currentTarget.style.background = 'rgba(255,93,126,0.22)')}
+        onMouseEnter={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.35)')}
+        onMouseLeave={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.22)')}
       >
-        {holding === 'berry' ? '🍓 Feeding…' : `🍓 Feed berry (${berries})`}
+        {heldFeedable
+          ? `${feedEmoji} Feeding ${petName}…`
+          : `${feedEmoji} Feed ${petName} (${berries})`}
       </button>
     </div>
   );

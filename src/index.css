@@ -161,3 +161,223 @@ canvas {
     display: none;
   }
 }
+
+/* ── Minimap (bottom-left, above the time controls) ── */
+.minimap {
+  position: absolute;
+  bottom: 78px;
+  left: 16px;
+  width: 158px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 12px;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.minimap-head {
+  font-size: 11px;
+  font-weight: 800;
+  opacity: 0.85;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+.minimap-body {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.minimap-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* Fog of war — a second canvas stacked over the terrain, darkening tiles
+   the camera hasn't visited yet. Pointer events pass through so clicks
+   still pan the map. */
+.minimap-fog {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* Explored % pill in the minimap header */
+.minimap-pct {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.9;
+  color: #cfe3ff;
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.minimap-pct.done {
+  color: #ffd93d;
+  text-shadow: 0 0 8px rgba(255, 217, 61, 0.6);
+}
+
+/* The live camera viewport rectangle */
+.minimap-viewport {
+  position: absolute;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* Waypoint buttons (home / shop / bed) — click to fly there */
+.minimap-waypoint {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  /* Stay above the territory rings so anchors are always clickable */
+  z-index: 3;
+  width: 19px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1.5px solid;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s;
+  z-index: 2;
+}
+
+.minimap-waypoint:hover {
+  transform: translate(-50%, -50%) scale(1.3);
+  z-index: 4;
+}
+
+/* Pet dots — starter is the bigger pink pulse; hatched pets are colored
+   by species (inline background). Dots are clickable (delegated handler). */
+.minimap-pets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.minimap-pet {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.7);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.minimap-pet.starter {
+  width: 8px;
+  height: 8px;
+  background: #ff6b9d;
+  box-shadow: 0 0 5px rgba(255, 107, 157, 0.95);
+  animation: minimap-pulse 1.6s ease-in-out infinite;
+}
+
+/* Home territory rings — a dashed circle around each pet's home anchor,
+   sized to its roam radius. Click the ring (or the dot) to fly there. */
+.minimap-territory {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1.5px dashed rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  /* Clip both the visual AND the hit area to the visible circle, so the
+     square box's invisible corners don't swallow plain-map pan clicks */
+  clip-path: circle(50%);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.minimap-territory:hover {
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.minimap-home-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+@keyframes minimap-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+/* ── Transient toast (ToastHud) — bottom-center, above the palette ── */
+.toast {
+  position: absolute;
+  bottom: 118px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  padding: 7px 16px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.toast.toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Hatch naming modal (NamingModal) ── */
+.naming-card {
+  animation: naming-pop 0.32s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes naming-pop {
+  0% {
+    transform: scale(0.7) translateY(14px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}

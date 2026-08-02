@@ -5,9 +5,14 @@
  *  - pink-ish noise through a lowpass filter gives the constant surf hiss
  *  - a slow LFO modulating the master gain creates gentle swells/ebbs
  *
+ * Shares the ONE game-wide AudioContext + master gain (see sfx.js), so the
+ * master sound toggle in App.jsx controls the ocean, the music bed, and all
+ * sfx together.
+ *
  * Browsers block audio until a user gesture, so call startOcean() from a
  * click handler (the HUD button in App.jsx does this).
  */
+import { getAudioContext, getMasterGain, resumeAudio } from './sfx';
 
 let ctx = null;
 let noiseSource = null;
@@ -31,16 +36,13 @@ function createNoiseBuffer(ac) {
   return buffer;
 }
 
-/** Create (or resume) the AudioContext and start the wave loop. */
+/** Create (or resume) the shared AudioContext and start the wave loop. */
 export function startOcean() {
   if (playing) return;
 
-  if (!ctx) {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    ctx = new AC();
-  }
-  if (ctx.state === 'suspended') ctx.resume();
+  ctx = getAudioContext();
+  if (!ctx) return;
+  resumeAudio();
 
   // ── Graph: noise → lowpass → master → destination ──
   noiseSource = ctx.createBufferSource();
@@ -57,7 +59,8 @@ export function startOcean() {
 
   noiseSource.connect(filter);
   filter.connect(masterGain);
-  masterGain.connect(ctx.destination);
+  // Route through the game-wide master so the sound toggle mutes the ocean too
+  masterGain.connect(getMasterGain() ?? ctx.destination);
 
   // Slow LFO sculpts gentle waves on top of the hiss
   lfoOsc = ctx.createOscillator();

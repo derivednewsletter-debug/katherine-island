@@ -2,12 +2,17 @@ import React, { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { MapControls, OrthographicCamera } from '@react-three/drei';
 import MapGrid from './MapGrid';
+import CameraTracker from './CameraTracker';
 import Creature from './Creature';
 import Bed from './Bed';
 import Decorations from './Decorations';
 import PlacementSystem from './PlacementSystem';
 import ShopKiosk from './ShopKiosk';
 import DayNightCycle from './DayNightCycle';
+import Eggs from './Egg';
+import Pets from './Pets';
+import Crops from './Crops';
+import FogOfWar from './FogOfWar';
 
 /**
  * Scene content rendered inside the R3F Canvas.
@@ -18,30 +23,32 @@ function SceneContent() {
   return (
     <>
       {/* ── Camera ──
-          zoom 38 frames the 14x14 island nicely — the island grew from
-          12x12, and 38 keeps it filling more of the frame than before
-          while staying under the ~40 clip point that shorter windows hit
-          with the bigger footprint. */}
+          The island is now 160 tiles wide, so the default zoom frames the
+          spawn region with the island sprawling into the distance. Scroll
+          way out (minZoom 3) to see the whole archipelago. */}
       <OrthographicCamera
         makeDefault
-        position={[14, 16, 14]}
-        zoom={38}
+        position={[50, 55, 50]}
+        zoom={9}
         near={0.1}
-        far={200}
+        far={900}
       />
 
       {/* ── Controls ──
           MapControls (from Drei) wraps THREE.MapControls:
           pan + dolly/zoom. Rotation is disabled to lock the
           isometric viewing angle. */}
+      {/* makeDefault registers these controls in the R3F state so the
+          CameraTracker (and the minimap pan-to) can reach them. */}
       <MapControls
+        makeDefault
         enableRotate={false}
         enableDamping
         dampingFactor={0.12}
-        panSpeed={0.8}
-        zoomSpeed={0.8}
-        minZoom={20}
-        maxZoom={90}
+        panSpeed={1.6}
+        zoomSpeed={0.9}
+        minZoom={3}
+        maxZoom={70}
         screenSpacePanning={false}
         target={[0, 0, 0]}
       />
@@ -49,12 +56,21 @@ function SceneContent() {
       {/* ── Day/Night lighting + sky (replaces static lights) ── */}
       <DayNightCycle />
 
+      {/* ── Camera tracker — feeds the DOM minimap + flies on panTo ── */}
+      <CameraTracker />
+
+      {/* ── Fog of war — dims unexplored terrain until the camera sees it ── */}
+      <FogOfWar />
+
       {/* ── Map Grid ── */}
       <Suspense fallback={null}>
         <MapGrid />
         <Creature />
+        <Pets />
         <Bed />
         <Decorations />
+        <Eggs />
+        <Crops />
         <PlacementSystem />
         <ShopKiosk />
       </Suspense>

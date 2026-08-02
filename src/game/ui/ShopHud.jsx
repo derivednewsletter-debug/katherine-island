@@ -18,6 +18,7 @@ export default function ShopHud() {
   const inventory = useGameStore((s) => s.inventory);
   const upgrades = useGameStore((s) => s.upgrades);
   const unlockedDecorations = useGameStore((s) => s.unlockedDecorations);
+  const ownedEggs = useGameStore((s) => s.ownedEggs);
 
   // Esc closes the shop
   useEffect(() => {
@@ -31,6 +32,10 @@ export default function ShopHud() {
 
   const isOwned = (item) =>
     item.kind === 'upgrade' ? !!upgrades[item.id] : unlockedDecorations.includes(item.id);
+
+  // Eggs are repeatable — show how many the player already has in hand.
+  const eggCount = (item) =>
+    item.kind === 'egg' ? ownedEggs.filter((e) => e.species === item.species).length : 0;
 
   return (
     <>
@@ -106,6 +111,7 @@ export default function ShopHud() {
 
           {SHOP_ITEMS.map((item) => {
             const owned = isOwned(item);
+            const ownedEggsCount = eggCount(item);
             const affordable = canAfford(item.price, inventory);
             return (
               <div
@@ -161,7 +167,7 @@ export default function ShopHud() {
                     color: owned ? '#7ee8a0' : affordable ? '#4a3800' : '#8a8a8a',
                   }}
                 >
-                  {owned ? '✓ Owned' : affordable ? 'Buy' : '—'}
+                  {owned ? '✓ Owned' : item.kind === 'egg' && ownedEggsCount > 0 ? `Buy ×${ownedEggsCount + 1}` : affordable ? 'Buy' : '—'}
                 </button>
               </div>
             );

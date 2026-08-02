@@ -11,21 +11,31 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { generateInitialDecorations, canPlaceDecoration } from '../data/decorations';
-import { getTile, gridToWorld } from '../data/mapData';
+import {
+  generateInitialDecorations,
+  mergeDecorations,
+  canPlaceDecoration,
+} from '../data/decorations';
+import { getTile, gridToWorld, isWalkable, BED_SPOT, SPAWN_POINT } from '../data/mapData';
+import { resetExplored } from './exploration';
 import { TILE_THICKNESS } from '../components/Tile';
 import { shopItem, canAfford, deductPrice, KIOSK_TILE } from '../data/shop';
+import { PET_SPECIES, EGG_HATCH_MS, pickPetHome } from '../data/species';
+import { questById, freshQuests, questIndexByMetric } from '../data/quests';
+import { cropById, cropStageIndex } from '../data/crops';
+import { RESOURCES } from '../data/resources';
 
 /** Seconds of game time per full day-night cycle. */
 export const DAY_CYCLE_SECONDS = 180;
 
 /**
  * Save schema version — bump whenever a saved island becomes invalid
- * (e.g. the 12x12 → 14x14 expansion reshaped the map). Persisted to
- * localStorage by zustand AND stamped into cloud saves by saveSync, so
- * both the local cache and the Neon backup reject pre-bump saves.
+ * (e.g. the 14x14 hand-authored map → the 160x160 procedural archipelago
+ * reshaped everything). Persisted to localStorage by zustand AND stamped
+ * into cloud saves by saveSync, so both the local cache and the Neon
+ * backup reject pre-bump saves.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /**
  * Boot offset (~42% through the day cycle) so the game starts near late
@@ -60,7 +70,11 @@ export const useGameStore = create(
   // ── Decorations ──
   // Every prop on the island (seeded scatter + player-planted) lives here,
   // so the map, the build ghost, and pathfinding all agree on occupancy.
+  // The scatter is deterministic (regenerated on boot); only player-planted
+  // props and erased scatter cells are persisted — see partialize.
   decorations: generateInitialDecorations(),
+  plantedDecorations: [], // player-planted props (persisted)
+  removedScatterCells: [], // "row,col" cells whose seed prop was erased (persisted)
 
   // ── Build mode ──
   placement: {
@@ -70,7 +84,8 @@ export const useGameStore = create(
 
   // ── Creature's current cell (kept in sync by Creature.jsx) ──
   // Used so the build ghost goes red over the pet and you can't seal it in.
-  creaturePos: { row: 6, col: 6 },
+  // Defaults to the procedural spawn clearing.
+  creaturePos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col },
 
   // ── Sleep (set by Creature.jsx when night falls / dawn breaks) ──
   // While true, drainNeeds recharges energy instead of draining it.
@@ -91,6 +106,29 @@ export const useGameStore = create(
   shopOpen: false,
   upgrades: {}, // owned upgrade ids (berryBasket, shellBucket, stonePick, comfyNest)
   unlockedDecorations: [], // shop-bought decoration kinds added to the palette
+
+  // ── Pet eggs & hatched pets ──
+  // Eggs are bought at the shop (repeatable), then placed on the island;
+  // after EGG_HATCH_MS of REAL time they hatch into a new wandering pet.
+  ownedEggs: [], // [{ id, species }] bought but not yet placed
+  placedEggs: [], // [{ id, species, row, col, x, z, y, plantedAt }] incubating
+  pets: [], // [{ id, species, name, pos, needs, sleeping }] hatched pets
+  namingPetId: null, // pet awaiting a name at the hatch moment
+  selectedPetId: 'starter', // 'starter' | a pets[].id — whose needs the HUD shows
+
+  // ── Quest board ──
+  // Simple goals that reward the gather/care loop. Progress is advanced by
+  // recordQuestProgress (called from MapGrid, Creature, Pet, buyItem).
+  quests: freshQuests(), // [{ id, progress, claimed }]
+  questBoardOpen: false,
+
+  // ── Crops ──
+  // Player-planted crops growing on the island. Growth is derived from the
+  // shared game clock (crop.plantedAt is in game-seconds), so pause/speed
+  // and the day-night cycle drive the stages. `toast` is a transient HUD
+  // message (harvest feedback, etc.) — never persisted.
+  crops: [], // [{ id, cropId, row, col, x, z, y, rot, scale, plantedAt }]
+  toast: null, // { id, text } | null
 
   // ── Actions ──
   /** Advance the clock by `gameDt` game-seconds (called by gameClock loop). */
@@ -119,6 +157,10 @@ export const useGameStore = create(
       return { inventory: { ...s.inventory, [resource]: s.inventory[resource] + amount } };
     }),
 
+  /** Pop a transient HUD toast (harvest feedback, hints). Auto-fades in the UI. */
+  showToast: (text) =>
+    set((s) => ({ toast: { id: (s.toast?.id ?? 0) + 1, text } })),
+
   /**
    * Drain the creature's needs by `gameDt` game-seconds (called by the
    * needs system, which ticks off the shared game clock). Clamped to 0.
@@ -130,6 +172,9 @@ export const useGameStore = create(
    * active daylight burns hunger faster, restless nights burn energy
    * faster, and the calm night slows the happiness drain (the "night
    * bonus" the mood reads in moodFromNeeds).
+   *
+   * Every hatched pet in `pets` drains by the same rules (each with its
+   * own sleeping flag), so all the island's critters share one economy.
    */
   drainNeeds: (gameDt) =>
     set((s) => {
@@ -139,31 +184,59 @@ export const useGameStore = create(
       // drift from the HUD and the sky — 0.2–0.75 counts as daylight.
       const { isDay } = timeOfDay(s.time, s.dayCycleSeconds);
 
-      if (s.sleeping) {
-        return {
-          needs: {
+      const starterNeeds = s.sleeping
+        ? {
             hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
             energy: Math.min(100, s.needs.energy + SLEEP_RECHARGE * gameDt),
             happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
+          }
+        : {
+            hunger: Math.max(
+              0,
+              s.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * rate * gameDt
+            ),
+            energy: Math.max(
+              0,
+              s.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
+            ),
+            happiness: Math.max(
+              0,
+              s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
+            ),
+          };
+
+      // Drain every hatched pet by the same day-aware rules.
+      const pets = s.pets.map((p) => {
+        if (p.sleeping) {
+          return {
+            ...p,
+            needs: {
+              hunger: Math.max(0, p.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
+              energy: Math.min(100, p.needs.energy + SLEEP_RECHARGE * gameDt),
+              happiness: Math.max(0, p.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
+            },
+          };
+        }
+        return {
+          ...p,
+          needs: {
+            hunger: Math.max(
+              0,
+              p.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * rate * gameDt
+            ),
+            energy: Math.max(
+              0,
+              p.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
+            ),
+            happiness: Math.max(
+              0,
+              p.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
+            ),
           },
         };
-      }
-      return {
-        needs: {
-          hunger: Math.max(
-            0,
-            s.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * rate * gameDt
-          ),
-          energy: Math.max(
-            0,
-            s.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
-          ),
-          happiness: Math.max(
-            0,
-            s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
-          ),
-        },
-      };
+      });
+
+      return { needs: starterNeeds, pets };
     }),
 
   /** Mark the pet asleep/awake (set by Creature.jsx on night/day). */
@@ -186,22 +259,137 @@ export const useGameStore = create(
     set((s) => ({ holding: s.holding === resource ? null : resource })),
 
   /**
-   * Feed the pet one berry: consumes a berry, restores hunger and gives a
-   * happiness bump (a treat!), and puts the berry down. Returns true when a
-   * berry was consumed, false when the inventory is empty.
+   * Feed a pet the currently held resource (defaults to a berry when
+   * nothing is held). `target` defaults to the HUD's selected pet
+   * ('starter' or a hatched pet id) so the HUD feed button and in-world
+   * pet clicks both work. Each feedable resource has its own effects —
+   * see FEED_BY_RESOURCE (berries fill hunger, jungle fruit is a heartier
+   * meal, herbs restore energy, flowers lift happiness). Returns true
+   * when a treat was consumed, false when the inventory is empty.
    */
-  feedPet: () => {
+  feedPet: (target) => {
     const s = get();
-    if ((s.inventory.berry ?? 0) < 1) return false;
+    const petId = target ?? s.selectedPetId;
+    const resource = s.holding && FEED_BY_RESOURCE[s.holding] ? s.holding : 'berry';
+    const fx = FEED_BY_RESOURCE[resource];
+    if (!fx || (s.inventory[resource] ?? 0) < 1) return false;
+    const apply = (needs) => ({
+      hunger: Math.min(100, (needs.hunger ?? 100) + (fx.hunger ?? 0)),
+      energy: Math.min(100, (needs.energy ?? 100) + (fx.energy ?? 0)),
+      happiness: Math.min(100, (needs.happiness ?? 100) + (fx.happiness ?? 0)),
+    });
+    if (petId === 'starter') {
+      set((st) => ({
+        inventory: { ...st.inventory, [resource]: st.inventory[resource] - 1 },
+        needs: apply(st.needs),
+        holding: null, // treat was eaten
+      }));
+      return true;
+    }
     set((st) => ({
-      inventory: { ...st.inventory, berry: st.inventory.berry - 1 },
-      needs: {
-        ...st.needs,
-        hunger: Math.min(100, st.needs.hunger + FEED.hunger),
-        happiness: Math.min(100, st.needs.happiness + FEED.happiness),
-      },
-      holding: null, // berry was eaten
+      inventory: { ...st.inventory, [resource]: st.inventory[resource] - 1 },
+      pets: st.pets.map((p) => (p.id === petId ? { ...p, needs: apply(p.needs) } : p)),
+      holding: null, // treat was eaten
     }));
+    return true;
+  },
+
+  // ── Crops ──
+  /** Plant a crop (the placement tool is `crop:<id>`). Validates biome +
+   *  occupancy; on success the crop's real-time growth clock starts. */
+  plantCrop: (cropId, row, col) =>
+    set((s) => {
+      if (!s.placement.active || s.placement.tool !== `crop:${cropId}`) return s;
+      const def = cropById(cropId);
+      if (!def || !canPlantCrop(s, cropId, row, col)) return s;
+      const tile = getTile(row, col);
+      const { x, z } = gridToWorld(row, col);
+      return {
+        crops: [
+          ...s.crops,
+          {
+            id: uid(),
+            cropId,
+            row,
+            col,
+            x,
+            z,
+            y: tile.height + TILE_THICKNESS,
+            rot: Math.random() * Math.PI * 2,
+            scale: 0.9 + Math.random() * 0.3,
+            plantedAt: s.time, // game-seconds — growth runs on the shared clock
+          },
+        ],
+        placement: { active: false, tool: null, eggId: null },
+      };
+    }),
+
+  /** Harvest a fully-grown crop at a cell. Credits the reward, advances
+   *  gather quests, and pops a toast. Returns true when harvested. */
+  harvestCrop: (row, col) => {
+    const s = get();
+    const crop = s.crops.find((c) => c.row === row && c.col === col);
+    if (!crop) return false;
+    const def = cropById(crop.cropId);
+    if (!def || cropStageIndex(crop, s.time) < def.durations.length) return false; // not ready
+    const inventory = { ...s.inventory };
+    const texts = [];
+    for (const [resource, amount] of Object.entries(def.reward)) {
+      inventory[resource] = (inventory[resource] ?? 0) + amount;
+      texts.push(`${amount} ${RESOURCES[resource]?.emoji ?? resource}`);
+      // Crop harvests count toward gather:<resource> quests too
+      s.recordQuestProgress(`gather:${resource}`, amount);
+    }
+    set({
+      inventory,
+      crops: s.crops.filter((c) => c.id !== crop.id),
+      toast: { id: (s.toast?.id ?? 0) + 1, text: `${def.emoji} +${texts.join(' + ')}` },
+    });
+    return true;
+  },
+
+  /** Remove a crop (eraser tool). No-op if the cell is empty. */
+  removeCrop: (row, col) =>
+    set((s) => {
+      if (!s.crops.some((c) => c.row === row && c.col === col)) return s;
+      return { crops: s.crops.filter((c) => !(c.row === row && c.col === col)) };
+    }),
+
+  // ── Quest board ──
+  toggleQuestBoard: () => set((s) => ({ questBoardOpen: !s.questBoardOpen })),
+
+  /**
+   * Advance every quest watching `metric` by `amount` (clamped to target).
+   * Called by game events (gather, pet, feed, buy). No-op when nothing
+   * matches or a quest is already claimed.
+   */
+  recordQuestProgress: (metric, amount = 1) =>
+    set((s) => {
+      const quests = advanceQuests(s.quests, metric, amount);
+      // No-op (return {}) when nothing advanced — avoids churning the store
+      // root for clicks that don't match any active quest.
+      return quests === s.quests ? {} : { quests };
+    }),
+
+  /**
+   * Claim a finished quest's reward into the inventory and mark it claimed.
+   * Returns true when the reward was actually paid, false when the quest is
+   * missing, unfinished, or already claimed (so the UI only chimes on a real
+   * payout and can't double-claim on a fast double-click).
+   */
+  claimQuestReward: (questId) => {
+    const s = get();
+    const quest = s.quests.find((q) => q.id === questId);
+    const def = questById(questId);
+    if (!quest || !def || quest.claimed || quest.progress < def.target) return false;
+    const inventory = { ...s.inventory };
+    for (const [resource, amount] of Object.entries(def.reward)) {
+      inventory[resource] = (inventory[resource] ?? 0) + amount;
+    }
+    set({
+      inventory,
+      quests: s.quests.map((q) => (q.id === questId ? { ...q, claimed: true } : q)),
+    });
     return true;
   },
 
@@ -210,9 +398,9 @@ export const useGameStore = create(
 
   /**
    * Buy a shop item. Validates the item exists, isn't already owned, and is
-   * affordable, then deducts the price and applies the effect (upgrade flag
-   * or palette unlock). No-op (returns same state) when the purchase is
-   * invalid — safe to call from UI with any state.
+   * affordable, then deducts the price and applies the effect (upgrade flag,
+   * palette unlock, or a repeatable pet egg). No-op (returns same state)
+   * when the purchase is invalid — safe to call from UI with any state.
    */
   buyItem: (itemId) =>
     set((s) => {
@@ -224,7 +412,15 @@ export const useGameStore = create(
 
       const inventory = deductPrice(item.price, s.inventory);
       if (item.kind === 'decoration') {
-        return { inventory, unlockedDecorations: [...s.unlockedDecorations, itemId] };
+        return {
+          inventory,
+          unlockedDecorations: [...s.unlockedDecorations, itemId],
+          quests: advanceQuests(s.quests, 'buy:decoration', 1),
+        };
+      }
+      if (item.kind === 'egg') {
+        // Eggs are repeatable — every purchase adds another unhatched egg.
+        return { inventory, ownedEggs: [...s.ownedEggs, { id: uid(), species: item.species }] };
       }
       return { inventory, upgrades: { ...s.upgrades, [itemId]: true } };
     }),
@@ -249,54 +445,189 @@ export const useGameStore = create(
   togglePlacement: (tool) =>
     set((s) =>
       s.placement.active && s.placement.tool === tool
-        ? { placement: { active: false, tool: null } }
-        : { placement: { active: true, tool } }
+        ? { placement: { active: false, tool: null, eggId: null } }
+        : { placement: { active: true, tool, eggId: null } }
     ),
 
-  stopPlacement: () => set({ placement: { active: false, tool: null } }),
+  stopPlacement: () => set({ placement: { active: false, tool: null, eggId: null } }),
+
+  /** Enter placement mode with a specific owned egg (or exit if it's the
+   *  active tool). The egg ghost shows under the cursor like a decoration. */
+  startEggPlacement: (eggId) =>
+    set((s) => ({
+      placement:
+        s.placement.active && s.placement.tool === 'egg' && s.placement.eggId === eggId
+          ? { active: false, tool: null, eggId: null }
+          : { active: true, tool: 'egg', eggId },
+    })),
 
   /**
-   * Plant a decoration at a grid cell. Validates terrain, occupancy, and
-   * the creature's cell; no-op when the ghost shows red.
+   * Place an owned egg at a grid cell. Validates terrain + occupancy;
+   * on success the egg leaves ownedEggs and starts incubating (its real
+   * -time hatch clock begins). No-op when the ghost shows red.
    */
-  placeDecoration: (kind, row, col) =>
+  placeEgg: (row, col) =>
     set((s) => {
-      if (!canPlaceDecoration(s.decorations, row, col, s.creaturePos, KIOSK_TILE)) return s;
+      if (!s.placement.active || s.placement.tool !== 'egg') return s;
+      const egg = s.ownedEggs.find((e) => e.id === s.placement.eggId);
+      if (!egg) return s;
+      if (!canPlaceEggTile(s, row, col)) return s;
       const tile = getTile(row, col);
       const { x, z } = gridToWorld(row, col);
       return {
-        decorations: [
-          ...s.decorations,
+        ownedEggs: s.ownedEggs.filter((e) => e.id !== egg.id),
+        placedEggs: [
+          ...s.placedEggs,
           {
-            id: `${row},${col}`,
-            kind,
+            id: egg.id,
+            species: egg.species,
             row,
             col,
             x,
             z,
             y: tile.height + TILE_THICKNESS,
-            rot: Math.random() * Math.PI * 2,
-            scale: 0.75 + Math.random() * 0.55,
+            plantedAt: Date.now(),
           },
         ],
+        placement: { active: false, tool: null, eggId: null },
       };
     }),
 
-  /** Remove a decoration from a grid cell (eraser tool). No-op if empty. */
+  /**
+   * An egg finished incubating (10 real minutes) — remove it and add a
+   * new pet at its tile. The naming prompt opens for the fresh critter.
+   *
+   * The pet is born at its HOME anchor — a far-flung spot in its species'
+   * habitat biome — so the herd spreads across the island and the minimap
+   * herd markers scatter, rather than every critter clustering at spawn.
+   */
+  hatchEgg: (eggId) =>
+    set((s) => {
+      const egg = s.placedEggs.find((e) => e.id === eggId);
+      if (!egg) return s;
+      const petId = uid();
+      // Pick a home in the species' habitat that isn't already occupied by
+      // a decoration, an egg, or the kiosk (so the pet can't hatch inside
+      // a palm tree or the shop counter).
+      const home = pickUnblockedHome(s, egg.species);
+      return {
+        placedEggs: s.placedEggs.filter((e) => e.id !== eggId),
+        pets: [
+          ...s.pets,
+          {
+            id: petId,
+            species: egg.species,
+            name: PET_SPECIES[egg.species]?.label ?? 'Pet',
+            pos: { ...home },
+            home,
+            needs: { hunger: 85, energy: 90, happiness: 80 },
+            sleeping: false,
+          },
+        ],
+        namingPetId: petId,
+        selectedPetId: petId,
+      };
+    }),
+
+  /** Name the newly hatched pet (clears the naming prompt). */
+  namePet: (name) =>
+    set((s) => {
+      if (!s.namingPetId) return s;
+      const clean = (name || '').trim();
+      return {
+        pets: s.pets.map((p) =>
+          p.id === s.namingPetId
+            ? { ...p, name: clean || PET_SPECIES[p.species]?.label || 'Pet' }
+            : p
+        ),
+        namingPetId: null,
+      };
+    }),
+
+  /** Which pet the needs HUD shows (and the feed button feeds). */
+  selectPet: (id) => set({ selectedPetId: id }),
+
+  /** Click-to-pet an extra pet: happiness bump + hearts (no growth). */
+  petPet: (id) =>
+    set((s) => ({
+      pets: s.pets.map((p) =>
+        p.id === id
+          ? { ...p, needs: { ...p.needs, happiness: Math.min(100, p.needs.happiness + 8) } }
+          : p
+      ),
+    })),
+
+  /** Track an extra pet's cell (fires only on change — like setCreaturePos).
+   *  Guarded so a same-cell update returns the same state instead of a new
+   *  pets array every frame. */
+  setPetPos: (id, row, col) =>
+    set((s) => {
+      const pet = s.pets.find((p) => p.id === id);
+      if (!pet || (pet.pos && pet.pos.row === row && pet.pos.col === col)) return s;
+      return {
+        pets: s.pets.map((p) => (p.id === id ? { ...p, pos: { row, col } } : p)),
+      };
+    }),
+
+  /** Mark an extra pet asleep/awake (set by Pet.jsx on night/day). */
+  setPetSleeping: (id, sleeping) =>
+    set((s) => ({
+      pets: s.pets.map((p) => (p.id === id ? { ...p, sleeping } : p)),
+    })),
+
+  /**
+   * Plant a decoration at a grid cell. Validates terrain, occupancy, and
+   * the creature's cell; no-op when the ghost shows red. Also refuses
+   * tiles holding an incubating egg or a hatched pet.
+   */
+  placeDecoration: (kind, row, col) =>
+    set((s) => {
+      if (!canPlaceDecoration(s.decorations, row, col, s.creaturePos, KIOSK_TILE)) return s;
+      if (s.placedEggs.some((e) => e.row === row && e.col === col)) return s;
+      if (s.pets.some((p) => p.pos && p.pos.row === row && p.pos.col === col)) return s;
+      if (s.crops.some((c) => c.row === row && c.col === col)) return s;
+      const tile = getTile(row, col);
+      const { x, z } = gridToWorld(row, col);
+      const deco = {
+        id: `${row},${col}`,
+        kind,
+        row,
+        col,
+        x,
+        z,
+        y: tile.height + TILE_THICKNESS,
+        rot: Math.random() * Math.PI * 2,
+        scale: 0.75 + Math.random() * 0.55,
+      };
+      return {
+        decorations: [...s.decorations, deco],
+        plantedDecorations: [...s.plantedDecorations, deco],
+      };
+    }),
+
+  /** Remove a decoration from a grid cell (eraser tool). No-op if empty.
+   *  Erasing a seed prop records its cell so it stays gone after a reload. */
   removeDecoration: (row, col) =>
     set((s) => {
       if (!s.decorations.some((d) => d.row === row && d.col === col)) return s;
+      const cell = `${row},${col}`;
+      const wasPlanted = s.plantedDecorations.some((d) => d.row === row && d.col === col);
       return {
         decorations: s.decorations.filter((d) => !(d.row === row && d.col === col)),
+        plantedDecorations: s.plantedDecorations.filter((d) => !(d.row === row && d.col === col)),
+        removedScatterCells: wasPlanted
+          ? s.removedScatterCells
+          : [...s.removedScatterCells, cell],
       };
     }),
 
-  /** Is a grid cell impassable? (Pathfinding queries this.) Decorations
-   *  block, and the shop kiosk owns its tile. */
+  /** Is a grid cell impassable? (Pathfinding queries this — hot path on the
+   *  big island, so it resolves through a cached O(1) Set that's rebuilt
+   *  only when decorations/eggs actually change, not per query.) Decorations
+   *  and incubating eggs block, and the shop kiosk owns its tile. */
   isTileBlocked: (row, col) => {
     const s = get();
-    if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return true;
-    return s.decorations.some((d) => d.row === row && d.col === col);
+    return blockedSetFor(s).has(`${row},${col}`);
   },
 
   /** Track the creature's current cell (called only when it changes). */
@@ -307,12 +638,23 @@ export const useGameStore = create(
     }),
 
   /**
+   * Can a crop be planted on this cell? Biome must match the crop, the
+   * tile must be walkable land, and it can't collide with the kiosk, the
+   * bed, the creature, a pet, an egg, a decoration, or another crop.
+   */
+  canPlantCrop: (row, col, cropId) => {
+    const s = get();
+    return canPlantCrop(s, cropId, row, col);
+  },
+
+  /**
    * Wipe the save: clear localStorage and restore every persisted slice to
    * its fresh-game default. The clock, pause state, and build mode also
    * reset so testing starts from a clean island.
    */
   resetGame: () => {
     useGameStore.persist.clearStorage();
+    resetExplored(); // wipe the fog-of-war discovery map too
     set({
       time: START_TIME, // back to a fresh late-morning start
       timeScale: 1,
@@ -320,38 +662,187 @@ export const useGameStore = create(
       inventory: { berry: 0, shell: 0, stone: 0 },
       needs: { hunger: 100, energy: 100, happiness: 100 },
       decorations: generateInitialDecorations(),
+      plantedDecorations: [],
+      removedScatterCells: [],
       sleeping: false,
       stage: 'baby',
       carePoints: 0,
       upgrades: {},
       unlockedDecorations: [],
+      ownedEggs: [],
+      placedEggs: [],
+      pets: [],
+      namingPetId: null,
+      selectedPetId: 'starter',
       shopOpen: false,
       holding: null,
-      placement: { active: false, tool: null },
+      placement: { active: false, tool: null, eggId: null },
+      quests: freshQuests(),
+      questBoardOpen: false,
+      crops: [],
+      toast: null,
     });
   },
     }),
     {
       name: 'katherine-island-save', // localStorage key
       version: SAVE_VERSION,
-      // The island was expanded 12x12 → 14x14, which reshapes every
-      // decoration's grid position; discard pre-v2 saves so players get
-      // the fresh larger island instead of mis-positioned props.
+      // The island became a 160x160 procedural archipelago — every old
+      // save's decorations/positions reference a vanished hand-authored
+      // grid, so discard pre-v3 saves and hand everyone the fresh island.
       migrate: () => ({}),
-      // Only progress worth surviving a reload is persisted — the clock,
-      // pause, build mode, and held berry are transient and boot fresh.
+      // Progress worth surviving a reload is persisted. Pause, build mode,
+      // the held treat, the deterministic decoration SCATTER, and toasts
+      // are transient and boot fresh. `time` IS persisted now: crops grow
+      // on the game clock, so the clock (and its plantedAt anchors) must
+      // survive reloads for growth to mean anything.
       partialize: (s) => ({
+        time: s.time,
         inventory: s.inventory,
         needs: s.needs,
         stage: s.stage,
         carePoints: s.carePoints,
         upgrades: s.upgrades,
         unlockedDecorations: s.unlockedDecorations,
-        decorations: s.decorations,
+        plantedDecorations: s.plantedDecorations,
+        removedScatterCells: s.removedScatterCells,
+        ownedEggs: s.ownedEggs,
+        placedEggs: s.placedEggs,
+        pets: s.pets,
+        namingPetId: s.namingPetId,
+        selectedPetId: s.selectedPetId,
+        quests: s.quests,
+        crops: s.crops,
       }),
+      // After a save loads, re-merge the regenerated scatter with the
+      // player's planted props / erased cells into `decorations`, and
+      // backfill a home anchor for any pet from before the territory
+      // feature (their save predates `home`).
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const planted = state.plantedDecorations ?? [];
+        const removed = state.removedScatterCells ?? [];
+        let backfilled = false;
+        const pets = (state.pets ?? []).map((p) => {
+          if (p.home && p.home.row !== undefined) return p;
+          backfilled = true;
+          return { ...p, home: pickPetHome(p.species) };
+        });
+        useGameStore.setState({
+          decorations: mergeDecorations(generateInitialDecorations(), planted, removed),
+          // Only touch pets when a pre-territory pet actually needed a home
+          // (avoids churning pet subscribers on saves that are already fine).
+          ...(backfilled ? { pets } : {}),
+        });
+      },
     }
   )
 );
+
+/**
+ * Advance matching quests by `amount`, clamped to each quest's target and
+ * skipping claimed ones. Returns the SAME array reference when nothing
+ * changed (so recordQuestProgress can no-op cheaply), else a new array.
+ */
+function advanceQuests(quests, metric, amount) {
+  const index = questIndexByMetric();
+  const ids = index[metric];
+  if (!ids) return quests;
+  let changed = false;
+  const next = quests.map((q) => {
+    if (!ids.includes(q.id) || q.claimed) return q;
+    const def = questById(q.id);
+    if (!def || q.progress >= def.target) return q;
+    changed = true;
+    return { ...q, progress: Math.min(def.target, q.progress + amount) };
+  });
+  return changed ? next : quests;
+}
+
+/** Small unique id for eggs / pets (crypto UUID when available). */
+function uid() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * O(1) blocked-cell lookup for pathfinding. Decorations and incubating
+ * eggs rarely change, so a Set is built only when their REFERENCE changes
+ * (plant/erase/place/hatch) and cached — never rebuilt per A* expansion
+ * on a grid with thousands of decorations.
+ */
+let blockedCache = { decorations: null, eggs: null, set: null };
+
+function blockedSetFor(s) {
+  const cache = blockedCache;
+  if (cache.decorations === s.decorations && cache.eggs === s.placedEggs && cache.set) {
+    return cache.set;
+  }
+  const set = new Set();
+  for (const d of s.decorations) set.add(`${d.row},${d.col}`);
+  for (const e of s.placedEggs) set.add(`${e.row},${e.col}`);
+  set.add(`${KIOSK_TILE.row},${KIOSK_TILE.col}`);
+  blockedCache = { decorations: s.decorations, eggs: s.placedEggs, set };
+  return set;
+}
+
+/**
+ * Pick a species home anchor that isn't already occupied by a seeded
+ * decoration, an incubating egg, or the kiosk — so a hatched pet never
+ * pops into existence inside a palm tree or the shop counter. Retries a
+ * few times (pickPetHome is a random sample), then accepts the last pick.
+ */
+function pickUnblockedHome(s, species) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const home = pickPetHome(species);
+    const occupied =
+      s.decorations.some((d) => d.row === home.row && d.col === home.col) ||
+      s.placedEggs.some((e) => e.row === home.row && e.col === home.col) ||
+      (home.row === KIOSK_TILE.row && home.col === KIOSK_TILE.col);
+    if (!occupied) return home;
+  }
+  return pickPetHome(species);
+}
+
+/**
+ * Can an egg be placed on this cell? Same rules as decorations plus: not
+ * on another egg, and not on a tile a hatched pet currently occupies.
+ * Used by the egg ghost (PlacementSystem) and by placeEgg itself.
+ */
+export function canPlaceEggTile(s, row, col) {
+  const tile = getTile(row, col);
+  if (!tile || !isWalkable(tile)) return false;
+  if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return false;
+  if (row === BED_SPOT.row && col === BED_SPOT.col) return false;
+  if (s.creaturePos && s.creaturePos.row === row && s.creaturePos.col === col) return false;
+  if (s.pets.some((p) => p.pos && p.pos.row === row && p.pos.col === col)) return false;
+  if (s.decorations.some((d) => d.row === row && d.col === col)) return false;
+  if (s.placedEggs.some((e) => e.row === row && e.col === col)) return false;
+  if (s.crops.some((c) => c.row === row && c.col === col)) return false;
+  return true;
+}
+
+/**
+ * Can a crop be planted on this cell? The tile must be walkable land whose
+ * terrain is in the crop's biome list, and it can't collide with the kiosk,
+ * the bed, the creature, a pet, an egg, a decoration, or another crop.
+ * Used by the crop ghost (PlacementSystem), plantCrop, and the store action.
+ */
+export function canPlantCrop(s, cropId, row, col) {
+  const def = cropById(cropId);
+  const tile = getTile(row, col);
+  if (!def || !tile || !isWalkable(tile)) return false;
+  if (!def.biomes.includes(tile.type)) return false; // biome-gated!
+  if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return false;
+  if (row === BED_SPOT.row && col === BED_SPOT.col) return false;
+  if (s.creaturePos && s.creaturePos.row === row && s.creaturePos.col === col) return false;
+  if (s.pets.some((p) => p.pos && p.pos.row === row && p.pos.col === col)) return false;
+  if (s.decorations.some((d) => d.row === row && d.col === col)) return false;
+  if (s.placedEggs.some((e) => e.row === row && e.col === col)) return false;
+  if (s.crops.some((c) => c.row === row && c.col === col)) return false;
+  return true;
+}
 
 /**
  * Evolution chain: each stage lists the next stage + care required to reach
@@ -409,6 +900,19 @@ export const SLEEP_RECHARGE = 2.2;
 export const FEED = {
   hunger: 18, // berries are food
   happiness: 12, // and a treat
+};
+
+/**
+ * Feeding effects per feedable resource — the crop harvests are treats:
+ * berries fill hunger, jungle fruit is a heartier meal, mountain herbs are
+ * an energy tonic, and flowers are pure happiness. Keys mirror the
+ * resources the inventory can hold.
+ */
+export const FEED_BY_RESOURCE = {
+  berry: { hunger: 18, happiness: 12 },
+  fruit: { hunger: 26, happiness: 18 }, // hearty jungle meal
+  herb: { energy: 30 }, // mountain tonic
+  flower: { happiness: 30 }, // a sweet bouquet
 };
 
 /** Mood display config keyed by mood id. */

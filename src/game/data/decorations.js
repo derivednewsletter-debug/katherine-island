@@ -1,10 +1,21 @@
 /**
  * Decoration data: the build palette, the deterministic scatter that seeds
  * the island on first load, and the rules for where a player can plant.
+ *
+ * The scatter is derived purely from the fixed map seed, so it is NOT
+ * persisted — on boot it regenerates identically, then player-planted props
+ * (and any erased scatter cells) are merged back in. See mergeDecorations.
  */
-import { GRID_SIZE, getTile, isWalkable, gridToWorld, BED_SPOT } from './mapData';
+import {
+  GRID_SIZE,
+  getTile,
+  isWalkable,
+  gridToWorld,
+  BED_SPOT,
+  SPAWN_POINT,
+  KIOSK_TILE,
+} from './mapData';
 import { TILE_THICKNESS } from '../components/Tile';
-import { KIOSK_TILE } from './shop';
 
 /** Build palette — what the player can place and what the HUD shows. */
 export const DECORATION_TYPES = {
@@ -33,18 +44,15 @@ function mulberry32(seed) {
 }
 
 /**
- * Scatter decorative props (palms, rocks, flowers) on walkable tiles.
- * Same rules + seed as the original static version, so the island looks
- * identical to before — but each item now records its grid cell so the
- * store can enforce occupancy and the pet can path around it.
+ * Scatter decorative props (palms, rocks, flowers) on walkable tiles of the
+ * generated island. Per-tile probabilities are tuned down for the big map so
+ * ~25K tiles yield a few thousand props (instanced, so still cheap). Keeps
+ * clear rings around spawn, the sleeping mat, and the shop kiosk.
  */
 export function generateInitialDecorations() {
   const rng = mulberry32(20260801);
   const list = [];
-
-  // Creature spawns at grid (6,6) — keep a small clearing around it so
-  // the pet never loads inside a palm tree.
-  const SPAWN = { row: 6, col: 6 };
+  const SPAWN = SPAWN_POINT;
 
   for (let row = 0; row < GRID_SIZE; row++) {
     for (let col = 0; col < GRID_SIZE; col++) {
@@ -60,15 +68,18 @@ export function generateInitialDecorations() {
       const r = rng();
       let kind = null;
 
-      if (tile.type === 'grass') {
-        if (r < 0.14) kind = 'palm';
-        else if (r < 0.2) kind = 'rock';
-        else if (r < 0.3) kind = 'flower';
+      if (tile.type === 'grass' || tile.type === 'jungle') {
+        if (r < 0.07) kind = 'palm';
+        else if (r < 0.11) kind = 'rock';
+        else if (r < 0.19) kind = 'flower';
       } else if (tile.type === 'sand') {
-        if (r < 0.18) kind = 'palm';
-        else if (r < 0.24) kind = 'rock';
+        if (r < 0.1) kind = 'palm';
+        else if (r < 0.16) kind = 'rock';
       } else if (tile.type === 'hill') {
-        if (r < 0.3) kind = 'palm';
+        if (r < 0.14) kind = 'palm';
+        else if (r < 0.22) kind = 'rock';
+      } else if (tile.type === 'peak') {
+        if (r < 0.28) kind = 'rock';
       }
 
       if (!kind) continue;
@@ -91,6 +102,19 @@ export function generateInitialDecorations() {
   }
 
   return list;
+}
+
+/**
+ * Rebuild the full decoration list after a save loads: the deterministic
+ * scatter, minus cells the player erased, plus the player's planted props.
+ * `removedCells` is a list of "${row},${col}" strings (erased scatter cells);
+ * `planted` is the list of player-planted decorations (full records).
+ */
+export function mergeDecorations(scatter, planted, removedCells) {
+  const removed = new Set(removedCells ?? []);
+  const plantedCells = new Set(planted.map((d) => `${d.row},${d.col}`));
+  const kept = scatter.filter((d) => !removed.has(d.id) && !plantedCells.has(d.id));
+  return [...kept, ...planted];
 }
 
 /**

@@ -5,9 +5,14 @@ import NeedsHud from './game/ui/NeedsHud';
 import TimeControl from './game/ui/TimeControl';
 import PlacementHud from './game/ui/PlacementHud';
 import ShopHud from './game/ui/ShopHud';
+import QuestBoard from './game/ui/QuestBoard';
+import Minimap from './game/ui/Minimap';
+import NamingModal from './game/ui/NamingModal';
+import ToastHud from './game/ui/ToastHud';
 import { startGameClock } from './game/state/gameClock';
 import { startNeedsSystem } from './game/state/needs';
 import { startOcean, stopOcean, isOceanPlaying } from './game/audio/ocean';
+import { startMusic, stopMusic, isMusicPlaying, setSoundEnabled } from './game/audio/sfx';
 import { startSaveSync, syncSaveFromCloud } from './game/state/saveSync';
 
 /**
@@ -37,12 +42,18 @@ export default function App() {
     };
   }, []);
 
+  // One master sound switch: ocean ambience + music bed + sfx. The click is
+  // also the user gesture browsers need to unlock the shared AudioContext.
   const toggleSound = () => {
     if (isOceanPlaying()) {
       stopOcean();
+      stopMusic();
+      setSoundEnabled(false);
       setSoundOn(false);
     } else {
+      setSoundEnabled(true);
       startOcean();
+      startMusic();
       setSoundOn(true);
     }
   };
@@ -75,6 +86,18 @@ export default function App() {
       {/* Shop (bottom-right): button + panel, also opened by the 3D kiosk */}
       <ShopHud />
 
+      {/* Quest board (top-left, under the title) */}
+      <QuestBoard />
+
+      {/* Minimap (bottom-left, above the time controls) */}
+      <Minimap />
+
+      {/* Hatch-time naming overlay (appears when an egg hatches) */}
+      <NamingModal />
+
+      {/* Transient toast (crop harvests, "not ready" hints) */}
+      <ToastHud />
+
       {/* UI Overlay — non-intrusive, positioned above the canvas */}
       <div style={{
         position: 'absolute',
@@ -97,7 +120,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Ocean ambience toggle (bottom-right) */}
+      {/* Master sound toggle (bottom-right): ocean + music + sfx */}
       <button
         onClick={toggleSound}
         style={{
@@ -118,7 +141,7 @@ export default function App() {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        {soundOn ? '🔇 Mute ocean' : '🌊 Ocean waves'}
+        {soundOn ? '🔇 Mute sound' : '🔊 Sound on'}
       </button>
     </div>
   );
