@@ -6,6 +6,7 @@ import SvgIcon from './SvgIcon';
 
 // Map need keys to icon names
 const NEED_ICONS = { hunger: 'farm', energy: 'time', happiness: 'heart' };
+const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 // Map mood states to icon names
 const MOOD_ICONS = { happy: 'happy', neutral: 'neutral', sad: 'sad' };
 
@@ -100,8 +101,6 @@ export default function NeedsHud() {
   const feedResource = heldFeedable ?? (berries >= 1 ? 'berry' : null);
   const feedIconName = feedResource ? (ICON_MAP[feedResource] || 'berry') : 'berry';
   const feed = () => useGameStore.getState().feedPet(selectedPetId);
-
-  const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 
   return (
     <div
