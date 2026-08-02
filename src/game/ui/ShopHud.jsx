@@ -194,7 +194,9 @@ export default function ShopHud() {
                     <SvgIcon name={res} size={16} />
                     <span style={{ flex: 1, fontSize: 12 }}>{RESOURCES[res]?.label || res}</span>
                     <span style={{ fontSize: 11, opacity: 0.8 }}>Have: {have}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#ffd700' }}>{price} 🪙</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#ffd700', display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <SvgIcon name="coin" size={11} /> {price}
+                    </span>
                     <button
                       disabled={have === 0}
                       onClick={() => {

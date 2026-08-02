@@ -104,7 +104,7 @@ export default function TimeControl() {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        {paused ? '▶ Play' : '⏸ Pause'}
+        <SvgIcon name={paused ? 'play' : 'pause'} size={14} /> {paused ? 'Play' : 'Pause'}
       </button>
 
       {/* Speed toggle: 1x → 2x → 4x */}

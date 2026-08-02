@@ -11,6 +11,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { throttledStorage } from './throttledStorage';
 import {
   generateInitialDecorations,
   mergeDecorations,
@@ -856,6 +857,9 @@ export const useGameStore = create(
     {
     name: 'katherine-island-save', // localStorage key
     version: SAVE_VERSION,
+    // The clock set()s the store every frame; write the save to disk at
+    // most once per ~0.5s (flushing on pagehide) instead of ~60x/sec.
+    storage: throttledStorage,
     // The island became a 200x200 procedural archipelago — every old
     // save's decorations/positions reference a vanished hand-authored
     // grid, so discard pre-v3 saves and hand everyone the fresh island.

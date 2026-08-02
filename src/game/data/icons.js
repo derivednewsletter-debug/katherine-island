@@ -36,6 +36,8 @@ export const ICONS = {
   sleep: '<svg viewBox="0 0 24 24" fill="#a3e4ff"><path d="M3 13h2v6H3zm4 0h2v6H7zm4 0h2v6h-2zm6-8v8h2v-8h-2z"/></svg>',
   happy: '<svg viewBox="0 0 24 24" fill="#ffd93d"><circle cx="8" cy="9" r="1.5"/><circle cx="16" cy="9" r="1.5"/><path d="M12 15c-2 0-3.5 1.5-3.5 3h7c0-1.5-1.5-3-3.5-3z"/></svg>',
   neutral: '<svg viewBox="0 0 24 24" fill="#ffd93d"><circle cx="8" cy="9" r="1.5"/><circle cx="16" cy="9" r="1.5"/><path d="M9 16h6v1H9z"/></svg>',
+  hungry: '<svg viewBox="0 0 24 24" fill="#ff9f43"><circle cx="8" cy="9" r="1.5"/><circle cx="16" cy="9" r="1.5"/><path d="M12 15c-1.8 0-3.2 1.3-3.5 3h7c-.3-1.7-1.7-3-3.5-3z"/><path d="M12 13l1.8-3.2a1 1 0 0 0-3.6 0z" fill="#fff"/></svg>',
+  tired: '<svg viewBox="0 0 24 24" fill="#a3e4ff"><path d="M7 6l-2 3 2 3 2-3zM17 6l-2 3 2 3 2-3z" opacity="0.9"/><circle cx="8" cy="12" r="1.4"/><circle cx="16" cy="12" r="1.4"/><path d="M12 18.5a3.2 3.2 0 0 1-3-2h6a3.2 3.2 0 0 1-3 2z" opacity="0.5"/></svg>',
   sad: '<svg viewBox="0 0 24 24" fill="#a3e4ff"><circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/><path d="M12 17c-2 0-3.5-1.5-3.5-3h7c0 1.5-1.5 3-3.5 3z"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-.5-4h1v-3h-1v3zm0-4h1v-2h-1v2z"/></svg>',
   warning: '<svg viewBox="0 0 24 24" fill="#ffd93d"><path d="M12 2l10 16H2L12 2zm0 6v4h1v4h-1v-4h1V8h-1zm0 6c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>',
@@ -48,4 +50,7 @@ export const ICONS = {
   arrowRight: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M13.59 6 18 10.41 16.59 12l-5.59-5.59z"/><path d="M10 18h2V6h-2z"/></svg>',
   waterDrop: '<svg viewBox="0 0 24 24" fill="#3b82f6"><path d="M12 2C8 8 4 11 4 15a8 8 0 0 0 16 0c0-4-4-7-8-13z"/></svg>',
   plant: '<svg viewBox="0 0 24 24" fill="#4ade80"><path d="M12 2l1 4h2l1-4h2v6h-2l1 4-1 4h-2l-1-4-1-4h-2l1-4z"/><rect x="10" y="10" width="4" height="10" fill="#8d6b4b"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="#7ee8fa"><path d="M12 2C7 2 3 6 3 11c0 6.5 9 11 9 11s9-4.5 9-11c0-5-4-9-9-9zm0 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="#9fe8a8"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="#ffd166"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>',
 };

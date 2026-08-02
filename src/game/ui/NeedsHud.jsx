@@ -8,7 +8,7 @@ import SvgIcon from './SvgIcon';
 const NEED_ICONS = { hunger: 'farm', energy: 'time', happiness: 'heart' };
 const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 // Map mood states to icon names
-const MOOD_ICONS = { happy: 'happy', neutral: 'neutral', sad: 'sad' };
+const MOOD_ICONS = { happy: 'happy', content: 'neutral', hungry: 'hungry', tired: 'tired', sad: 'sad' };
 
 const BARS = [
   { key: 'hunger', label: 'Hunger', color: '#ff9f43' },
@@ -69,16 +69,18 @@ export default function NeedsHud() {
     return p?.species;
   });
 
-  // Pet roster for the selector chips: [{ id, icon, name }] for starter +
-  // every hatched pet. Serialized to a stable string so the selector only
-  // re-renders when a pet is added/renamed (names can contain any char).
+  // Pet roster for the selector chips: [{ id, icon, name, moodIcon }] for
+  // starter + every hatched pet, where each chip carries ITS OWN current
+  // mood (not the selected pet's). Serialized to a stable string so the
+  // selector only re-renders when a pet is added/renamed/evolves mood.
   const roster = useGameStore((s) => {
-    const starter = { id: 'starter', icon: 'egg', name: 'My pet' };
-    const pets = s.pets.map((p) => ({
-      id: p.id,
-      icon: 'egg',
-      name: p.name,
-    }));
+    const isNight = !timeOfDay(s.time, s.dayCycleSeconds).isDay;
+    const starterMood = s.sleeping ? 'sleep' : MOOD_ICONS[moodFromNeeds(s.needs, isNight)] || 'happy';
+    const starter = { id: 'starter', icon: 'egg', name: 'My pet', moodIcon: starterMood };
+    const pets = s.pets.map((p) => {
+      const mood = p.sleeping ? 'sleep' : MOOD_ICONS[moodFromNeeds(p.needs, isNight)] || 'happy';
+      return { id: p.id, icon: 'egg', name: p.name, moodIcon: mood };
+    });
     return JSON.stringify([starter, ...pets]);
   });
   const chips = JSON.parse(roster || '[]');
@@ -123,7 +125,6 @@ export default function NeedsHud() {
         maxWidth: 210,
       }}
     >
-       {"  /* Pet selector — click to swap whose needs this panel shows */"}
        <div
          style={{
            display: 'flex',
@@ -161,7 +162,7 @@ export default function NeedsHud() {
                  whiteSpace: 'nowrap',
                }}
              >
-               <SvgIcon name={MOOD_ICONS[mood] || 'happy'} size={14} />
+                <SvgIcon name={chip.moodIcon} size={14} />
                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{chip.name}</span>
              </button>
            );

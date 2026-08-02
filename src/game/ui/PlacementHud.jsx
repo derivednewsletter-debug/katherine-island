@@ -97,7 +97,7 @@ export default function PlacementHud() {
             ? <><SvgIcon name="close" size={12} /> Click a decoration or crop to remove · Esc to exit</>
             : placement.tool?.startsWith('crop:')
               ? (seeds[placement.tool.slice(5)] ?? 0) > 0
-                ? <>'Green = right biome · click to plant · Esc to exit'</>
+                ? <><SvgIcon name="check" size={12} /> Green = right biome · click to plant · Esc to exit</>
                 : <><SvgIcon name="plant" size={12} /> Out of seeds — buy some at the shop · Esc to exit</>
               : 'Click land to plant · Esc to exit'}
         </span>

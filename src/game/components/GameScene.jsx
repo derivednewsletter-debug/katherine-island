@@ -93,6 +93,7 @@ export default function GameScene() {
   return (
     <Canvas
       shadows
+      dpr={[1, 1.75]}
       gl={{
         antialias: true,
         toneMapping: 3, // ACESFilmic

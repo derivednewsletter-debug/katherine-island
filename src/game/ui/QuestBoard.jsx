@@ -244,7 +244,7 @@ export default function QuestBoard() {
                       }}
                     >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <SvgIcon name={res === 'coin' ? 'coin' : res} size={12} />
+                    <SvgIcon name={resource === 'coin' ? 'coin' : resource} size={12} />
                     <span>+{amount}</span>
                   </span>
                     </span>

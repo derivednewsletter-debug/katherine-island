@@ -18,6 +18,7 @@
  */
 import { useGameStore, SAVE_VERSION } from './gameStore';
 import { mergeDecorations, generateInitialDecorations } from '../data/decorations';
+import { throttledStorage } from './throttledStorage';
 
 const PLAYER_KEY = 'katherine-player-id';
 const SAVE_KEY = 'katherine-island-save'; // must match persist name in gameStore
@@ -40,12 +41,10 @@ export function getPlayerId() {
 
 /** The persisted slice currently in localStorage ({state, version} wrapper). */
 function readLocalSave() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  // Read through the throttled storage so a pending (not-yet-flushed)
+  // write is seen too — otherwise a cloud push could lag behind the
+  // player's latest actions.
+  return throttledStorage.getItem(SAVE_KEY);
 }
 
 /** The last time this browser wrote to (or read from) the cloud save. */

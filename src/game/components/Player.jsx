@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../state/gameStore';
@@ -50,9 +50,12 @@ export default function Player() {
   const leftArmRef = useRef();
   const rightArmRef = useRef();
 
-  const [keys, setKeys] = useState({});
-  const [targetPos, setTargetPos] = useState(null);
-  const [moveProgress, setMoveProgress] = useState(1);
+  // Movement animation state lives in refs, not React state: it changes
+  // every frame while walking, and driving React re-renders at 60fps for
+  // a purely visual interpolation would be wasted work.
+  const keysRef = useRef({});
+  const targetPosRef = useRef(null);
+  const moveProgressRef = useRef(1);
 
   const playerPos = useGameStore((s) => s.playerPos);
   const playerDir = useGameStore((s) => s.playerDir);
@@ -73,10 +76,7 @@ export default function Player() {
       if (e.repeat) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-      setKeys((k) => {
-        if (k[e.key]) return k;
-        return { ...k, [e.key]: true };
-      });
+      keysRef.current[e.key] = true;
 
       if (DIRECTION_VECTORS[e.key]) {
         const dir = DIRECTION_VECTORS[e.key];
@@ -97,8 +97,8 @@ export default function Player() {
 
         setPlayerDir(dir.angle);
         movePlayer(newRow, newCol);
-        setTargetPos({ row: newRow, col: newCol });
-        setMoveProgress(0);
+        targetPosRef.current = { row: newRow, col: newCol };
+        moveProgressRef.current = 0;
         playStep();
       }
 
@@ -154,11 +154,7 @@ export default function Player() {
     };
 
     const up = (e) => {
-      setKeys((k) => {
-        const next = { ...k };
-        delete next[e.key];
-        return next;
-      });
+      delete keysRef.current[e.key];
     };
 
     window.addEventListener('keydown', down);
@@ -176,14 +172,16 @@ export default function Player() {
   }, [playerPos.row, playerPos.col]);
 
   useFrame((_, dt) => {
-    if (targetPos && moveProgress < 1) {
-      const newProgress = Math.min(1, moveProgress + dt * PLAYER_WALK_SPEED);
-      setMoveProgress(newProgress);
+    if (targetPosRef.current && moveProgressRef.current < 1) {
+      const newProgress = Math.min(1, moveProgressRef.current + dt * PLAYER_WALK_SPEED);
+      moveProgressRef.current = newProgress;
 
       if (newProgress >= 1) {
-        setTargetPos(null);
+        targetPosRef.current = null;
       }
     }
+
+    const moveProgress = moveProgressRef.current;
 
     // Bobbing animation when moving
     if (bodyRef.current) {

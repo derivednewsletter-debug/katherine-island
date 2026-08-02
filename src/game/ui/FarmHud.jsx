@@ -172,24 +172,26 @@ export default function FarmHud() {
             border: '1px solid rgba(255,255,255,0.15)',
           }}
         >
-           <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <SvgIcon name="farm" size={16} />
-              Island Farm
-            </span>
-            <button
-              onClick={toggleFarm}
-              style={{
-                background: 'rgba(255,255,255,0.12)',
-                border: 'none',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: 13,
-                padding: '2px 9px',
-              }}
-            >
-              <SvgIcon name="close" size={14} />
-            </button>
+           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+             <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+               <SvgIcon name="farm" size={16} />
+               Island Farm
+             </span>
+             <button
+               onClick={toggleFarm}
+               style={{
+                 background: 'rgba(255,255,255,0.12)',
+                 border: 'none',
+                 borderRadius: 8,
+                 color: '#fff',
+                 cursor: 'pointer',
+                 fontSize: 13,
+                 padding: '2px 9px',
+               }}
+             >
+               <SvgIcon name="close" size={14} />
+             </button>
+           </div>
           {crops.length > 0 && (
             <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 2 }}>
               {crops.length} crop{crops.length === 1 ? '' : 's'} growing across the island

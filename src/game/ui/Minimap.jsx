@@ -217,7 +217,7 @@ export default function Minimap() {
   return (
     <div className="minimap">
       <div className="minimap-head">
-        🗺️ Island <span ref={pctRef} className="minimap-pct">…</span>
+        <SvgIcon name="map" size={11} /> Island <span ref={pctRef} className="minimap-pct">…</span>
       </div>
       <div className="minimap-body" onClick={handleMapClick}>
         <canvas ref={canvasRef} width={SIZE} height={SIZE} className="minimap-canvas" />
