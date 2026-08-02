@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Vercel
+.vercel/
+
+# Editor / OS
+.DS_Store
+*.log
+
+# Freebuff desktop workspace artifacts (not part of the game)
+.freebuff/
+desktop-v2.db
+desktop-v2.db-shm
+desktop-v2.db-wal
