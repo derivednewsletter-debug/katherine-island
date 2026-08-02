@@ -3,9 +3,12 @@ import GameScene from './game/components/GameScene';
 import InventoryHud from './game/ui/InventoryHud';
 import NeedsHud from './game/ui/NeedsHud';
 import TimeControl from './game/ui/TimeControl';
+import PlacementHud from './game/ui/PlacementHud';
+import ShopHud from './game/ui/ShopHud';
 import { startGameClock } from './game/state/gameClock';
 import { startNeedsSystem } from './game/state/needs';
 import { startOcean, stopOcean, isOceanPlaying } from './game/audio/ocean';
+import { startSaveSync, syncSaveFromCloud } from './game/state/saveSync';
 
 /**
  * Root App component.
@@ -16,10 +19,22 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(false);
 
   // Boot the shared game-clock loop and the needs drainer once
-  // (both idempotent / StrictMode-safe)
+  // (both idempotent / StrictMode-safe). Save sync: FIRST pull the cloud
+  // save (newer-of-local-vs-remote wins) and only THEN start pushing, so
+  // a stale local save can never clobber a newer remote one during the
+  // boot race.
   useEffect(() => {
     startGameClock();
     startNeedsSystem();
+    let stopSync = null;
+    let cancelled = false;
+    syncSaveFromCloud().then(() => {
+      if (!cancelled) stopSync = startSaveSync();
+    });
+    return () => {
+      cancelled = true;
+      if (stopSync) stopSync();
+    };
   }, []);
 
   const toggleSound = () => {
@@ -36,6 +51,15 @@ export default function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <GameScene />
 
+      {/* Cinematic overlay: soft color grade + vignette + film grain.
+          Pure CSS, pointer-events none, so clicks reach the canvas.
+          The island pops against the sky; the corners fall gently dark. */}
+      <div className="grade-overlay">
+        <div className="grade-overlay grade-color" />
+        <div className="grade-overlay grade-vignette" />
+        <div className="grade-overlay grade-grain" />
+      </div>
+
       {/* Inventory HUD (top-center) */}
       <InventoryHud />
 
@@ -44,6 +68,12 @@ export default function App() {
 
       {/* Game clock / pause / speed (bottom-left) */}
       <TimeControl />
+
+      {/* Build palette (bottom-center) */}
+      <PlacementHud />
+
+      {/* Shop (bottom-right): button + panel, also opened by the 3D kiosk */}
+      <ShopHud />
 
       {/* UI Overlay — non-intrusive, positioned above the canvas */}
       <div style={{
@@ -63,7 +93,7 @@ export default function App() {
           🌴 Katherine's Island
         </div>
         <div style={{ opacity: 0.75, fontSize: 12 }}>
-          Click tiles to gather &nbsp;|&nbsp; Click the pet to pet it &nbsp;|&nbsp; Pan: right-click &nbsp;|&nbsp; Zoom: scroll
+          Click land to gather &nbsp;|&nbsp; Click the pet to pet it (hold 🍓 to feed) &nbsp;|&nbsp; Pick a decoration below to build &nbsp;|&nbsp; Pan: right-click &nbsp;|&nbsp; Zoom: scroll
         </div>
       </div>
 

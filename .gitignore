@@ -6,6 +6,11 @@ dist/
 dist-ssr/
 *.local
 
+# Env / secrets (see .env.example)
+.env
+.env.*
+!.env.example
+
 # Vercel
 .vercel/
 

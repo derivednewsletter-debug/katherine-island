@@ -1,7 +1,7 @@
 /**
  * Pathfinding utilities for creature movement.
  *
- * The island is a small 12x12 grid, so a straightforward A* with a
+ * The island is a small 14x14 grid, so a straightforward A* with a
  * Manhattan heuristic is more than fast enough and keeps the code readable.
  */
 import { GRID_SIZE, getTile, isWalkable } from '../data/mapData';
@@ -19,12 +19,16 @@ const key = (row, col) => `${row},${col}`;
  * A* search for a path between two grid cells.
  * Returns an array of { row, col } waypoints (NOT including the start cell),
  * or an empty array if no path exists.
+ *
+ * Optional `isBlocked(row, col)` lets callers mark extra cells (e.g. tiles
+ * holding decorations) as impassable so the pet routes around plants.
  */
-export function findPath(startRow, startCol, endRow, endCol) {
+export function findPath(startRow, startCol, endRow, endCol, isBlocked) {
   // Same cell or unreachable target -> no path needed
   if (startRow === endRow && startCol === endCol) return [];
   const targetTile = getTile(endRow, endCol);
   if (!isWalkable(targetTile)) return [];
+  if (isBlocked && isBlocked(endRow, endCol)) return [];
 
   const openSet = new Map(); // key -> node
   const closedSet = new Set();
@@ -74,6 +78,7 @@ export function findPath(startRow, startCol, endRow, endCol) {
 
       const tile = getTile(row, col);
       if (!isWalkable(tile)) continue;
+      if (isBlocked && isBlocked(row, col)) continue;
 
       const g = current.g + 1;
       const existing = openSet.get(key(row, col));
@@ -96,15 +101,17 @@ export function findPath(startRow, startCol, endRow, endCol) {
 }
 
 /**
- * Pick a random walkable tile at least `minDistance` (Manhattan) cells away
- * from the given position. Returns { row, col } or null if none exists.
+ * Pick a random walkable, unblocked tile at least `minDistance` (Manhattan)
+ * cells away from the given position. Returns { row, col } or null if none.
+ * Optional `isBlocked(row, col)` excludes cells holding decorations.
  */
-export function getRandomWalkableTarget(startRow, startCol, minDistance = 3) {
+export function getRandomWalkableTarget(startRow, startCol, minDistance = 3, isBlocked) {
   const candidates = [];
   for (let row = 0; row < GRID_SIZE; row++) {
     for (let col = 0; col < GRID_SIZE; col++) {
       const tile = getTile(row, col);
       if (!isWalkable(tile)) continue;
+      if (isBlocked && isBlocked(row, col)) continue;
       if (manhattan(row, col, startRow, startCol) < minDistance) continue;
       candidates.push({ row, col });
     }

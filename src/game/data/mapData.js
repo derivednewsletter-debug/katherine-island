@@ -1,5 +1,5 @@
 /**
- * Island map data: 12x12 grid with terrain types.
+ * Island map data: 14x14 grid with terrain types.
  *
  * Terrain types:
  *  - 'water': deep ocean (dark blue)
@@ -17,7 +17,7 @@ export const TERRAIN_TYPES = {
   hill:    { color: '#5da851', height: 0.85, label: 'Hill' },
 };
 
-export const GRID_SIZE = 12;
+export const GRID_SIZE = 14;
 
 /**
  * World-space size of one tile (mirrors TILE_SIZE in Tile.jsx).
@@ -27,12 +27,20 @@ export const GRID_SIZE = 12;
 export const TILE_SIZE = 1;
 
 /**
- * 12x12 island map.
- * Row-major: mapData[row][col], where row 0 = top, row 11 = bottom.
+ * The pet's sleeping spot (grid row/col). Must stay a walkable grass
+ * tile; the decoration scatter keeps it clear and planting is forbidden
+ * there so the pet can always reach its mat when night falls.
+ */
+export const BED_SPOT = { row: 7, col: 6 };
+
+/**
+ * 14x14 island map.
+ * Row-major: mapData[row][col], where row 0 = top, row 13 = bottom.
  *
- * Shape: a natural island with irregular coastline in the center,
+ * Shape: a natural island with an irregular coastline in the center,
  * surrounded by water. Sand forms a beach ring, grass fills the interior
- * with a couple of small hills.
+ * with a raised hill cluster near the middle — more land to roam than
+ * the old 12x12.
  */
 const W = 'water';
 const L = 'shallow';
@@ -42,30 +50,32 @@ const H = 'hill';
 
 // prettier-ignore
 const rawMap = [
-  [W, W, W, W, W, W, W, W, W, W, W, W],
-  [W, W, W, W, L, L, L, L, W, W, W, W],
-  [W, W, W, L, S, S, S, S, L, W, W, W],
-  [W, W, L, S, G, G, G, S, S, L, W, W],
-  [W, W, L, S, G, H, G, G, S, L, W, W],
-  [W, L, S, G, H, H, G, G, S, S, L, W],
-  [W, L, S, G, G, G, G, S, S, S, L, W],
-  [W, L, S, S, G, G, G, S, S, L, W, W],
-  [W, W, L, S, S, G, G, S, S, L, W, W],
-  [W, W, L, L, S, S, S, S, L, L, W, W],
-  [W, W, W, W, L, L, L, L, W, W, W, W],
-  [W, W, W, W, W, W, W, W, W, W, W, W],
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+  [W, W, W, W, L, L, L, L, L, L, W, W, W, W],
+  [W, W, W, L, S, S, S, S, S, S, L, W, W, W],
+  [W, W, L, S, G, G, G, G, G, S, S, L, W, W],
+  [W, W, L, S, G, H, H, G, G, S, S, L, W, W],
+  [W, L, S, G, H, H, H, G, G, S, S, L, W, W],
+  [W, L, S, G, G, G, G, G, G, S, S, L, W, W],
+  [W, L, S, G, G, G, G, G, S, S, S, L, W, W],
+  [W, W, L, S, S, G, G, S, S, S, L, W, W, W],
+  [W, W, L, L, S, S, S, S, S, L, L, W, W, W],
+  [W, W, W, L, L, L, L, L, L, L, W, W, W, W],
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+  [W, W, W, W, W, W, W, W, W, W, W, W, W, W],
 ];
-
-const labelMap = { W, L, S, G, H };
 
 /**
  * The parsed 2D array used by the game. Each cell is { type, color, height, label }.
+ * rawMap cells already hold the full terrain names ('water', 'grass', ...),
+ * so we look up TERRAIN_TYPES directly — the cells need the NAME as `type`
+ * for resourceForTerrain/isWalkable, not a single-letter key.
  */
 export const mapData = rawMap.map((row) =>
   row.map((code) => {
-    const type = Object.keys(labelMap).find((k) => labelMap[k] === code);
-    const terrain = TERRAIN_TYPES[type];
-    return { type, ...terrain };
+    const terrain = TERRAIN_TYPES[code];
+    return { type: code, ...terrain };
   })
 );
 

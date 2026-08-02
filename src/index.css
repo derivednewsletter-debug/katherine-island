@@ -51,6 +51,22 @@ canvas {
   animation: need-bar-low 1s ease-in-out infinite;
 }
 
+/* Sleeping emoji gently floats (bobbing "Zzz" feel above a dozing pet) */
+.sleep-emoji {
+  display: inline-block;
+  animation: sleep-float 2.4s ease-in-out infinite;
+}
+
+@keyframes sleep-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 @keyframes need-bar-low {
   0%,
   100% {
@@ -58,5 +74,90 @@ canvas {
   }
   50% {
     opacity: 0.45;
+  }
+}
+
+/* ── Cinematic grade + vignette overlay ──
+   Pure-CSS post pass that sits over the R3F canvas (pointer-events none,
+   so gathering/petting clicks pass straight through). Three stacked
+   layers: a soft warm/cool color grade, a frame-darkening vignette, and a
+   whisper of film grain for texture.
+
+   NO z-index here on purpose: a non-auto z-index would create a stacking
+   context, isolating the mix-blend-mode layers so they'd blend against a
+   transparent backdrop instead of the canvas — and it would paint the
+   overlay ABOVE the HUDs (which use z-index auto). Without one, DOM order
+   rules: canvas first, overlay second, HUDs third. */
+.grade-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Subtle color grade: warm sunlight from the top-right, cool sea-light
+   from the bottom-left, blended softly so pastels stay pastel. */
+.grade-color {
+  mix-blend-mode: soft-light;
+  background:
+    radial-gradient(ellipse 130% 95% at 72% 8%, rgba(255, 214, 150, 0.55), transparent 55%),
+    radial-gradient(ellipse 130% 95% at 28% 96%, rgba(120, 200, 255, 0.4), transparent 58%);
+}
+
+/* Vignette: gently darkens the frame edges so the island pops against the
+   sky, without crushing the corners. */
+.grade-vignette {
+  background: radial-gradient(
+    ellipse 80% 72% at 50% 46%,
+    transparent 58%,
+    rgba(18, 32, 66, 0.34) 100%
+  );
+}
+
+/* Film grain: a barely-there SVG turbulence texture at very low opacity. */
+.grade-grain {
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
+/* ── Build palette (PlacementHud) ── */
+.palette-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, border-color 0.2s;
+}
+
+.palette-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.palette-btn:active {
+  transform: translateY(0);
+}
+
+.palette-btn.active {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25);
+}
+
+.palette-btn-label {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .palette-btn-label {
+    display: none;
   }
 }

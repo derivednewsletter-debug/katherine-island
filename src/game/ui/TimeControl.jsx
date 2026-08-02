@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore, timeOfDay } from '../state/gameStore';
+import { clearRemoteSave } from '../state/saveSync';
 
 const SPEEDS = [1, 2, 4];
 
@@ -15,6 +16,28 @@ export default function TimeControl() {
   const paused = useGameStore((s) => s.paused);
   const togglePause = useGameStore((s) => s.togglePause);
   const setTimeScale = useGameStore((s) => s.setTimeScale);
+  const skipToNight = useGameStore((s) => s.skipToNight);
+  const resetGame = useGameStore((s) => s.resetGame);
+
+  // Two-step reset: first click arms it, second click wipes the save.
+  const [confirmReset, setConfirmReset] = useState(false);
+  useEffect(() => {
+    if (!confirmReset) return;
+    const t = setTimeout(() => setConfirmReset(false), 3000); // auto-disarm
+    return () => clearTimeout(t);
+  }, [confirmReset]);
+
+  // Space toggles pause (ignore when typing / a button has focus)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code === 'Space' && !['INPUT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement?.tagName)) {
+        e.preventDefault();
+        togglePause();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [togglePause]);
 
   const { day, phase, isDay } = timeOfDay(time);
   const icon = isDay ? '☀️' : '🌙';
@@ -91,6 +114,47 @@ export default function TimeControl() {
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
         {timeScale}x
+      </button>
+
+      {/* Dramatic jump straight to dusk ("night falls") */}
+      <button
+        onClick={skipToNight}
+        style={buttonStyle}
+        title="Skip ahead to nightfall"
+        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
+      >
+        🌙 Night
+      </button>
+
+      {/* Wipe the save (two clicks to avoid accidents) */}
+      <button
+        onClick={() => {
+          if (confirmReset) {
+            resetGame();
+            clearRemoteSave(); // wipe the cloud save too
+            setConfirmReset(false);
+          } else {
+            setConfirmReset(true);
+          }
+        }}
+        style={{
+          ...buttonStyle,
+          background: confirmReset ? 'rgba(214, 69, 65, 0.7)' : 'rgba(0, 0, 0, 0.55)',
+        }}
+        title="Wipe the save and start fresh"
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = confirmReset
+            ? 'rgba(214, 69, 65, 0.85)'
+            : 'rgba(0, 0, 0, 0.75)')
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = confirmReset
+            ? 'rgba(214, 69, 65, 0.7)'
+            : 'rgba(0, 0, 0, 0.55)')
+        }
+      >
+        {confirmReset ? '⚠️ Sure?' : '🔄 Reset'}
       </button>
     </div>
   );

@@ -1,7 +1,15 @@
 import React, { useRef } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { useGameStore } from '../state/gameStore';
 
-const DURATION = 0.9; // seconds of the pop-fade animation
+const DURATION = 1.15; // total pop + flight time (seconds)
+const POP_END = 0.32; // fraction of the animation spent on the spawn pop
+const FLIGHT_FADE = 0.72; // flight progress at which the pickup starts fading
+
+// Small NDC x-offset so each collectible lands near its own counter chip
+// (the inventory bar is centered; berries sit left of center, stones right).
+const HUD_X = { berry: -0.07, shell: 0, stone: 0.07 };
 
 /**
  * The 3D shape for a given resource. Each is a tiny cluster of primitives
@@ -52,21 +60,34 @@ function ResourceShape({ resource }) {
 }
 
 /**
- * A single animated resource pickup. Spawns at the tile, pops upward in a
- * small arc, and fades out — then reports back via onDone so the parent
- * can remove it from the scene.
+ * A single animated resource pickup.
+ *
+ * Two-part animation: a quick elastic "pop" out of the tile (with a white
+ * ring flash at the harvest spot), then a flight that accelerates toward the
+ * top-center of the screen — where the inventory HUD lives — shrinking,
+ * spinning, and fading as it arrives. The HUD anchor is recomputed every
+ * frame from the camera, so collectibles always land on the counter even if
+ * the player pans or zooms mid-flight. Reports back via onDone when finished.
  */
 export default function Pickup({ resource, position, onDone }) {
   const groupRef = useRef();
-  const bornRef = useRef(null); // clock time when the animation started
+  const ringRef = useRef();
+  const elapsedRef = useRef(0); // accumulated game time (pause/timeScale aware)
   const doneRef = useRef(false);
 
-  useFrame(({ clock }) => {
+  // Scratch vectors (avoid per-frame allocation)
+  const anchor = useRef(new THREE.Vector3());
+  const from = useRef(new THREE.Vector3());
+
+  useFrame(({ camera }, delta) => {
     const group = groupRef.current;
     if (!group || doneRef.current) return;
 
-    if (bornRef.current === null) bornRef.current = clock.getElapsedTime();
-    const t = (clock.getElapsedTime() - bornRef.current) / DURATION;
+    // Accumulate shared game time so pause freezes the pickup mid-flight and
+    // fast-forward (2x/4x) makes it zip to the HUD that much quicker.
+    const { paused, timeScale } = useGameStore.getState();
+    elapsedRef.current += paused ? 0 : Math.min(delta, 0.05) * timeScale;
+    const t = elapsedRef.current / DURATION;
 
     if (t >= 1) {
       doneRef.current = true;
@@ -74,26 +95,68 @@ export default function Pickup({ resource, position, onDone }) {
       return;
     }
 
-    // Arc up then settle back down
-    group.position.y = position[1] + Math.sin(t * Math.PI) * 0.35;
-    // Pop in, then gently shrink while fading
-    const scale = 0.7 + Math.sin(Math.min(1, t * 2.5) * Math.PI) * 0.45;
-    group.scale.setScalar(scale);
+    // World-space point under the inventory HUD (top-center of the screen),
+    // computed from the live camera so it tracks pan/zoom/resize.
+    anchor.current
+      .set(HUD_X[resource] ?? 0, 0.92, 0.5)
+      .unproject(camera);
 
-    // Fade out during the last 30% of the animation
-    const fade = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
-    group.traverse((obj) => {
-      if (obj.isMesh && obj.material) {
-        obj.material.opacity = fade;
+    // Fades the collectible shapes only — the ring is excluded (it has its
+    // own lifecycle) so its opacity can never be clobbered by the traverse.
+    const setOpacity = (opacity) => {
+      group.traverse((obj) => {
+        if (obj.isMesh && obj.material && obj !== ringRef.current) {
+          obj.material.opacity = opacity;
+        }
+      });
+    };
+
+    if (t < POP_END) {
+      // ── Spawn pop: leap off the tile with an elastic overshoot ──
+      const k = t / POP_END;
+      // Ease-out rise to the launch apex
+      const rise = 0.3 * (1 - (1 - k) * (1 - k));
+      group.position.set(position[0], position[1] + rise, position[2]);
+      const s = 1 + 0.55 * Math.sin(k * Math.PI) * (1 - k);
+      group.scale.setScalar(s);
+      group.rotation.y = Math.sin(k * Math.PI) * 0.8;
+
+      setOpacity(1);
+      // Expanding white ring flash at the harvest spot
+      if (ringRef.current) {
+        ringRef.current.scale.setScalar(1 + k * 1.6);
+        ringRef.current.material.opacity = 0.8 * (1 - k);
       }
-    });
+    } else {
+      // ── Flight: accelerate toward the HUD, shrinking & fading out ──
+      const k = (t - POP_END) / (1 - POP_END);
+      const ease = k * k; // ease-in — starts slow, then snaps home
+      from.current.set(position[0], position[1] + 0.3, position[2]);
+      group.position.lerpVectors(from.current, anchor.current, ease);
+      group.scale.setScalar(1 - ease * 0.85);
+      group.rotation.y = ease * Math.PI * 3;
+      group.rotation.x = ease * Math.PI * 0.6;
 
-    // Gentle spin for liveliness
-    group.rotation.y = t * Math.PI;
+      const fade = k < FLIGHT_FADE ? 1 : 1 - (k - FLIGHT_FADE) / (1 - FLIGHT_FADE);
+      setOpacity(fade);
+      if (ringRef.current) ringRef.current.material.opacity = 0; // ring spent
+    }
   });
 
   return (
     <group ref={groupRef} position={position}>
+      {/* Expanding ring flash at the harvest spot */}
+      <mesh ref={ringRef} position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.16, 24]} />
+        <meshBasicMaterial
+          color="#ffffff"
+          transparent
+          opacity={0}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+
       <ResourceShape resource={resource} />
     </group>
   );

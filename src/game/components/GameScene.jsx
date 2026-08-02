@@ -3,7 +3,10 @@ import { Canvas } from '@react-three/fiber';
 import { MapControls, OrthographicCamera } from '@react-three/drei';
 import MapGrid from './MapGrid';
 import Creature from './Creature';
+import Bed from './Bed';
 import Decorations from './Decorations';
+import PlacementSystem from './PlacementSystem';
+import ShopKiosk from './ShopKiosk';
 import DayNightCycle from './DayNightCycle';
 
 /**
@@ -14,11 +17,15 @@ import DayNightCycle from './DayNightCycle';
 function SceneContent() {
   return (
     <>
-      {/* ── Camera ── */}
+      {/* ── Camera ──
+          zoom 38 frames the 14x14 island nicely — the island grew from
+          12x12, and 38 keeps it filling more of the frame than before
+          while staying under the ~40 clip point that shorter windows hit
+          with the bigger footprint. */}
       <OrthographicCamera
         makeDefault
         position={[14, 16, 14]}
-        zoom={28}
+        zoom={38}
         near={0.1}
         far={200}
       />
@@ -33,8 +40,8 @@ function SceneContent() {
         dampingFactor={0.12}
         panSpeed={0.8}
         zoomSpeed={0.8}
-        minZoom={12}
-        maxZoom={60}
+        minZoom={20}
+        maxZoom={90}
         screenSpacePanning={false}
         target={[0, 0, 0]}
       />
@@ -46,7 +53,10 @@ function SceneContent() {
       <Suspense fallback={null}>
         <MapGrid />
         <Creature />
+        <Bed />
         <Decorations />
+        <PlacementSystem />
+        <ShopKiosk />
       </Suspense>
     </>
   );

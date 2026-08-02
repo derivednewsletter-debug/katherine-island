@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
-import { gridToWorld, worldToGrid, getTile } from '../data/mapData';
+import { gridToWorld, worldToGrid, getTile, BED_SPOT } from '../data/mapData';
 import { findPath, getRandomWalkableTarget } from '../ai/pathfinding';
-import { useGameStore, moodFromNeeds, MOODS } from '../state/gameStore';
+import { useGameStore, moodFromNeeds, MOODS, timeOfDay } from '../state/gameStore';
 import { TILE_THICKNESS } from './Tile';
 
 const WALK_SPEED = 1.6; // tiles per second
 const HEART_COUNT = 6;
+const SPARK_COUNT = 26;
+const SPARK_COLORS = ['#ffd166', '#ff9fb6', '#a3e4ff', '#ffe9a8'];
 
 // Mood → movement speed multiplier (a tired pet shuffles, a happy one bounds)
 const MOOD_SPEED = {
@@ -19,14 +21,36 @@ const MOOD_SPEED = {
   sad: 0.75,
 };
 
-const COLORS = {
-  body: '#f5dc9a',
-  belly: '#fdf3d3',
-  ears: '#e8bf7e',
-  eyes: '#2b2b33',
-  cheeks: '#f79ab0',
-  leaf: '#7fb069',
-  accent: '#d9a05b',
+/**
+ * Per-stage look: babies are small + pastel; adults are bigger with the
+ * vivid tropical palette. `scale` multiplies the whole pet, `colors` swaps
+ * every mesh palette on evolution.
+ */
+const STAGE_STYLE = {
+  baby: {
+    scale: 0.8,
+    colors: {
+      body: '#fdf0d0',
+      belly: '#fffaf2',
+      ears: '#f6dcaa',
+      eyes: '#4a4a55',
+      cheeks: '#ffc2d4',
+      leaf: '#a8d69a',
+      accent: '#e9cf9d',
+    },
+  },
+  adult: {
+    scale: 1.15,
+    colors: {
+      body: '#f5dc9a',
+      belly: '#fdf3d3',
+      ears: '#e8bf7e',
+      eyes: '#2b2b33',
+      cheeks: '#f79ab0',
+      leaf: '#7fb069',
+      accent: '#d9a05b',
+    },
+  },
 };
 
 /** World-space Y of the top surface of a tile (feet rest here). */
@@ -63,16 +87,32 @@ export default function Creature() {
   const eyeGroupRef = useRef();
   const heartGroupRef = useRef();
   const heartMeshesRef = useRef([]);
+  const sparkGroupRef = useRef();
+  const sparkMeshesRef = useRef([]);
+  const ringRef = useRef();
 
   const [bubble, setBubble] = useState(null);
 
   // Subscribe to the pet's mood (string selector → re-renders only on mood
-  // change, not on every needs tick). Used for the mood indicator above its head.
-  const mood = useGameStore((s) => moodFromNeeds(s.needs));
+  // change, not on every needs tick). Used for the mood indicator above its
+  // head. Passes isNight so the night-calm mood bonus reads here too.
+  const mood = useGameStore((s) =>
+    moodFromNeeds(s.needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay)
+  );
+
+  // Sleep flag drives the sleeping mood emoji above the head.
+  const sleeping = useGameStore((s) => s.sleeping);
+
+  // Growth stage: swaps size + colors, and fires the celebration on evolve.
+  const stage = useGameStore((s) => s.stage);
+  const stageStyle = STAGE_STYLE[stage] ?? STAGE_STYLE.baby;
+  const colors = stageStyle.colors;
+  const prevStageRef = useRef(stage);
+  const evolvePulse = useRef(0); // 1 → 0 celebration scale pop
 
   // Start on a grass tile near the island center
-  const start = gridToWorld(4, 4);
-  const startY = surfaceHeightAt(4, 4);
+  const start = gridToWorld(6, 6);
+  const startY = surfaceHeightAt(6, 6);
 
   // Internal animation state (refs so per-frame updates don't re-render React)
   const state = useRef({
@@ -84,6 +124,7 @@ export default function Creature() {
     timer: 1.2, // idle/sit pause timer
     blinkTimer: 2,
     blinkHold: 0,
+    animTime: 0, // accumulated game-time (drives bob/wag/blink so pause & speed apply)
   });
 
   // Hearts particle pool (avoid mount/unmount churn)
@@ -93,6 +134,20 @@ export default function Creature() {
       life: 0,
       maxLife: 1,
       vy: 0,
+      scale: 1,
+      offset: new THREE.Vector3(),
+    }))
+  ).current;
+
+  // Evolution spark particle pool
+  const sparks = useRef(
+    Array.from({ length: SPARK_COUNT }, () => ({
+      active: false,
+      life: 0,
+      maxLife: 1,
+      vx: 0,
+      vy: 0,
+      vz: 0,
       scale: 1,
       offset: new THREE.Vector3(),
     }))
@@ -128,27 +183,95 @@ export default function Creature() {
     []
   );
 
+  // Spark geometry + per-particle colored materials (gold/pink/ice/warm)
+  const sparkGeometry = useMemo(() => new THREE.OctahedronGeometry(0.05), []);
+  const sparkMaterials = useMemo(
+    () =>
+      Array.from(
+        { length: SPARK_COUNT },
+        (_, i) =>
+          new THREE.MeshBasicMaterial({
+            color: SPARK_COLORS[i % SPARK_COLORS.length],
+            transparent: true,
+            opacity: 0,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+          })
+      ),
+    []
+  );
+
   const bubbleTimer = useRef(0);
   const petPause = useRef(0);
+  const munchPulse = useRef(0); // 1 → 0 feeding chew; drives a quick head-bob wiggle
 
-  // Dispose the pooled heart resources if the pet ever unmounts
+  /** Evolution celebration: scale pop, spark burst, ring flash, bubble. */
+  const triggerEvolution = () => {
+    evolvePulse.current = 1;
+    setBubble('I grew up! 🎉');
+    bubbleTimer.current = 2;
+    sparks.forEach((sp) => {
+      sp.active = true;
+      sp.life = 0;
+      sp.maxLife = 0.9 + Math.random() * 0.8;
+      const ang = Math.random() * Math.PI * 2;
+      const speed = 0.9 + Math.random() * 1.1;
+      sp.vx = Math.cos(ang) * speed;
+      sp.vz = Math.sin(ang) * speed;
+      sp.vy = 1.2 + Math.random() * 0.9;
+      sp.scale = 0.6 + Math.random() * 0.7;
+      sp.offset.set(0, 0.5, 0);
+    });
+  };
+
+  // Fire the celebration the moment the stage changes (baby → adult).
+  useEffect(() => {
+    if (prevStageRef.current !== stage) {
+      prevStageRef.current = stage;
+      triggerEvolution();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  // Dispose the pooled particle resources if the pet ever unmounts
   useEffect(() => {
     return () => {
       heartGeometry.dispose();
       heartMaterials.forEach((m) => m.dispose());
+      sparkGeometry.dispose();
+      sparkMaterials.forEach((m) => m.dispose());
     };
-  }, [heartGeometry, heartMaterials]);
+  }, [heartGeometry, heartMaterials, sparkGeometry, sparkMaterials]);
 
-  /** Pick a random walkable destination and compute an A* path to it. */
+  /** Night fell — walk to the mat (A* around plants) and curl up there. */
+  const startWalkingToBed = () => {
+    const s = state.current;
+    const gridPos = worldToGrid(s.pos.x, s.pos.z);
+    const blocked = (row, col) => useGameStore.getState().isTileBlocked(row, col);
+    const path = findPath(gridPos.row, gridPos.col, BED_SPOT.row, BED_SPOT.col, blocked);
+    if (path.length === 0) {
+      // Already on the mat (or it's walled off) — just curl up here
+      s.mode = 'sleep';
+      useGameStore.getState().setSleeping(true);
+      return;
+    }
+    s.path = path.map((p) => gridToWorld(p.row, p.col));
+    s.pathIndex = 0;
+    s.mode = 'gotoBed';
+  };
+
+  /** Pick a random unblocked destination and compute an A* path to it. */
   const tryStartWalking = () => {
     const s = state.current;
     const gridPos = worldToGrid(s.pos.x, s.pos.z);
-    const target = getRandomWalkableTarget(gridPos.row, gridPos.col, 2);
+    // Tiles holding decorations are impassable — route around them
+    const blocked = (row, col) => useGameStore.getState().isTileBlocked(row, col);
+    const target = getRandomWalkableTarget(gridPos.row, gridPos.col, 2, blocked);
     if (!target) {
       s.timer = 2;
       return;
     }
-    const path = findPath(start.row, start.col, target.row, target.col);
+    const path = findPath(gridPos.row, gridPos.col, target.row, target.col, blocked);
     if (path.length === 0) {
       s.timer = 2;
       return;
@@ -189,14 +312,8 @@ export default function Creature() {
     }
   };
 
-  /** Click-to-pet: hearts burst, bounce, a happy bubble, +happiness. */
-  const handlePet = (e) => {
-    e.stopPropagation();
-    petPause.current = 0.8;
-    setBubble('hehe! ♥');
-    bubbleTimer.current = 1.5;
-    useGameStore.getState().boostNeed('happiness', 8);
-
+  /** Pop a heart burst (used by petting AND feeding). */
+  const burstHearts = () => {
     hearts.forEach((h) => {
       h.active = true;
       h.life = 0;
@@ -211,18 +328,64 @@ export default function Creature() {
     });
   };
 
-  useFrame(({ camera, clock }, delta) => {
-    const t = clock.getElapsedTime();
+  /**
+   * Click-to-pet (or feed, when holding a berry): hearts burst, bounce, a
+   * happy bubble, +happiness and a care point toward evolution.
+   */
+  const handlePet = (e) => {
+    e.stopPropagation();
+
+    // A sleeping pet can't be petted — just a gentle hush.
+    if (useGameStore.getState().sleeping) {
+      setBubble('shh… 💤');
+      bubbleTimer.current = 1.4;
+      return;
+    }
+
+    // Feeding beats petting while a berry is held: munch, hearts, bubble.
+    if (useGameStore.getState().holding === 'berry') {
+      const fed = useGameStore.getState().feedPet();
+      if (fed) {
+        munchPulse.current = 1;
+        petPause.current = 0.9; // stop and enjoy the treat
+        setBubble('yum yum! 🍓');
+        bubbleTimer.current = 1.6;
+        burstHearts();
+      } else {
+        setBubble('no berries left…');
+        bubbleTimer.current = 1.4;
+      }
+      return;
+    }
+
+    petPause.current = 0.8;
+    setBubble('hehe! ♥');
+    bubbleTimer.current = 1.5;
+    useGameStore.getState().boostNeed('happiness', 8);
+    useGameStore.getState().addCare(1);
+    burstHearts();
+  };
+
+  useFrame(({ camera }, delta) => {
     const s = state.current;
     const group = groupRef.current;
     if (!group) return;
 
-    // Clamp delta: after the tab regains focus, rAF can deliver a multi-second
-    // gap, which would make the pet teleport across the island in one frame.
-    const dt = Math.min(delta, 0.05);
+    // Tick off the shared game clock: pause freezes the pet mid-pose and
+    // timeScale (1x/2x/4x) scales movement AND animation speed. Clamp raw
+    // delta so a backgrounded tab can't teleport the pet across the island.
+    const { paused, timeScale, time, dayCycleSeconds, sleeping } = useGameStore.getState();
+    const dt = paused ? 0 : Math.min(delta, 0.05) * timeScale;
+    s.animTime += dt;
+    const t = s.animTime;
 
-    // Mood read live (no re-render): drives speed + animation feel
-    const moodNow = moodFromNeeds(useGameStore.getState().needs);
+    // Night = any phase outside daylight (0.2–0.75). When it falls the pet
+    // heads to its mat; when dawn breaks it wakes up.
+    const isNight = !timeOfDay(time, dayCycleSeconds).isDay;
+
+    // Mood read live (no re-render): drives speed + animation feel.
+    // isNight (computed above) feeds the night-calm mood bonus.
+    const moodNow = moodFromNeeds(useGameStore.getState().needs, isNight);
     const speedMult = MOOD_SPEED[moodNow];
     const isTired = moodNow === 'tired';
     const isHappy = moodNow === 'happy';
@@ -231,6 +394,25 @@ export default function Creature() {
     // ---- State machine ----
     if (petPause.current > 0) {
       petPause.current -= dt; // petting freezes movement briefly
+    } else if (!isNight && (sleeping || s.mode === 'sleep' || s.mode === 'gotoBed')) {
+      // Dawn broke — wake up and greet the day
+      useGameStore.getState().setSleeping(false);
+      s.mode = 'idle';
+      s.timer = 1;
+      setBubble('Good morning! ☀️');
+      bubbleTimer.current = 1.6;
+    } else if (isNight && s.mode !== 'sleep' && s.mode !== 'gotoBed') {
+      // Night fell — head to the mat (interrupts whatever it was doing)
+      startWalkingToBed();
+    } else if (s.mode === 'gotoBed') {
+      stepAlongPath(dt, speedMult, isTired ? 1.6 : 1);
+      if (s.mode === 'sit') {
+        // Reached the mat — curl up for the night
+        s.mode = 'sleep';
+        useGameStore.getState().setSleeping(true);
+      }
+    } else if (s.mode === 'sleep') {
+      // Asleep — pose handled below; energy recharges via the store
     } else if (s.mode === 'idle') {
       s.timer -= dt;
       if (s.timer <= 0) tryStartWalking();
@@ -246,6 +428,9 @@ export default function Creature() {
 
     // ---- Position + facing ----
     const grid = worldToGrid(s.pos.x, s.pos.z);
+    // Tell the store which cell the pet occupies (only fires on change) so
+    // build mode can forbid planting on the pet's tile.
+    useGameStore.getState().setCreaturePos(grid.row, grid.col);
     const targetY = surfaceHeightAt(grid.row, grid.col);
     group.position.set(
       s.pos.x,
@@ -253,36 +438,70 @@ export default function Creature() {
       s.pos.z
     );
     group.rotation.y = s.yaw;
+    // Body size by growth stage + a brief oversize pop during the celebration
+    evolvePulse.current = Math.max(0, evolvePulse.current - dt * 1.6);
+    group.scale.setScalar(stageStyle.scale * (1 + evolvePulse.current * 0.4));
 
     // ---- Breathing / walking bob (mood-adjusted) ----
-    const isWalking = s.mode === 'walk';
-    const breathe = Math.sin(t * 2.5) * 0.02;
+    const isSleeping = s.mode === 'sleep';
+    const isWalking = s.mode === 'walk' || s.mode === 'gotoBed';
+    // Sleepers breathe slow; otherwise normal tempo
+    const breathe = Math.sin(t * (isSleeping ? 1.5 : 2.5)) * 0.02;
     // Happy pets bounce higher & faster; tired ones plod along
     const bobFreq = isHappy ? 11 : isTired ? 5 : 9;
     const bobAmp = isHappy ? 0.06 : isTired ? 0.03 : 0.05;
     const bob = isWalking ? Math.abs(Math.sin(t * bobFreq)) * bobAmp : 0;
     if (bodyRef.current) {
-      bodyRef.current.position.y = 0.22 + bob + (s.mode === 'sit' ? -0.06 : 0);
-      bodyRef.current.scale.set(1 + breathe, 1 - breathe * 0.6, 1 + breathe);
+      if (isSleeping) {
+        // Curled up: squashed + lowered, like a cozy ball
+        bodyRef.current.position.y = 0.13;
+        bodyRef.current.scale.set(1.18, 0.72, 1.24);
+      } else {
+        bodyRef.current.position.y = 0.22 + bob + (s.mode === 'sit' ? -0.06 : 0);
+        bodyRef.current.scale.set(1 + breathe, 1 - breathe * 0.6, 1 + breathe);
+      }
     }
     if (headRef.current) {
-      // Tired/sad pets hang their head slightly
-      headRef.current.position.y = 0.42 + bob * 0.6 - (isTired ? 0.03 : isSad ? 0.02 : 0);
+      if (isSleeping) {
+        // Head resting forward on the body
+        headRef.current.position.y = 0.3;
+        headRef.current.rotation.x = 0.35;
+      } else {
+        // Tired/sad pets hang their head slightly
+        headRef.current.position.y = 0.42 + bob * 0.6 - (isTired ? 0.03 : isSad ? 0.02 : 0);
+        headRef.current.rotation.x = 0;
+      }
     }
 
-    // ---- Feet march / tuck ----
-    const footSwing = isWalking ? Math.sin(t * bobFreq) * 0.5 : s.mode === 'sit' ? 0.3 : 0;
+    // ---- Munching (feeding): quick chew bob on the head + body wiggle ----
+    if (munchPulse.current > 0) {
+      munchPulse.current = Math.max(0, munchPulse.current - dt * 3);
+      const chew = Math.sin(t * 22);
+      if (headRef.current) headRef.current.position.y += Math.abs(chew) * 0.03 * munchPulse.current;
+      if (bodyRef.current) bodyRef.current.rotation.z = chew * 0.06 * munchPulse.current;
+    }
+
+    // ---- Feet march / tuck (sleepers tuck their feet in) ----
+    const footSwing = isWalking
+      ? Math.sin(t * bobFreq) * 0.5
+      : isSleeping
+        ? 0.5
+        : s.mode === 'sit'
+          ? 0.3
+          : 0;
     if (leftFootRef.current) leftFootRef.current.rotation.x = footSwing;
     if (rightFootRef.current) rightFootRef.current.rotation.x = -footSwing;
 
-    // ---- Tail wag (happy = fast, sad = limp) ----
+    // ---- Tail wag (happy = fast, sad = limp, asleep = barely there) ----
     if (tailRef.current) {
       const wag = isSad ? 0.6 : isHappy ? 1.4 : 1;
       tailRef.current.rotation.z =
-        Math.sin(t * (isWalking ? 14 : 5)) * (s.mode === 'sit' ? 0.3 : 0.22) * wag;
+        Math.sin(t * (isWalking ? 14 : isSleeping ? 2.2 : 5)) *
+        (s.mode === 'sit' ? 0.3 : isSleeping ? 0.12 : 0.22) *
+        wag;
     }
 
-    // ---- Blinking (tired pets blink more) ----
+    // ---- Blinking (tired pets blink more; sleepers keep eyes closed) ----
     s.blinkTimer -= dt;
     if (s.blinkTimer <= 0 && s.blinkHold <= 0) {
       s.blinkHold = 0.12;
@@ -290,7 +509,7 @@ export default function Creature() {
     }
     if (s.blinkHold > 0) s.blinkHold -= dt;
     if (eyeGroupRef.current) {
-      eyeGroupRef.current.scale.y = s.blinkHold > 0 ? 0.1 : 1;
+      eyeGroupRef.current.scale.y = s.blinkHold > 0 || isSleeping ? 0.1 : 1;
     }
 
     // ---- Hearts ----
@@ -308,7 +527,7 @@ export default function Creature() {
         return;
       }
       const k = h.life / h.maxLife;
-      h.offset.y += h.vy * delta;
+      h.offset.y += h.vy * dt;
       mesh.visible = true;
       mesh.position.copy(h.offset);
       const scale = h.scale * (1 - k * 0.5);
@@ -317,6 +536,44 @@ export default function Creature() {
     });
     if (heartGroupRef.current) {
       heartGroupRef.current.quaternion.copy(camera.quaternion); // billboard hearts
+    }
+
+    // ---- Evolution sparks (radial burst that falls with gravity) ----
+    sparks.forEach((sp, i) => {
+      const mesh = sparkMeshesRef.current[i];
+      if (!mesh) return;
+      if (!sp.active) {
+        mesh.visible = false;
+        return;
+      }
+      sp.life += dt;
+      if (sp.life >= sp.maxLife) {
+        sp.active = false;
+        mesh.visible = false;
+        return;
+      }
+      const k = sp.life / sp.maxLife;
+      sp.offset.x += sp.vx * dt;
+      sp.offset.y += sp.vy * dt;
+      sp.offset.z += sp.vz * dt;
+      sp.vy -= 2.4 * dt; // sparks arc up, then fall
+      mesh.visible = true;
+      mesh.position.copy(sp.offset);
+      mesh.scale.setScalar(sp.scale * (1 - k * 0.6));
+      mesh.material.opacity = 1 - k;
+    });
+    if (sparkGroupRef.current) {
+      sparkGroupRef.current.quaternion.copy(camera.quaternion); // billboard sparks
+    }
+
+    // ---- Celebration ring flash at the pet's feet ----
+    if (ringRef.current) {
+      const p = evolvePulse.current;
+      ringRef.current.visible = p > 0.01;
+      if (p > 0.01) {
+        ringRef.current.scale.setScalar(0.6 + (1 - p) * 2.6);
+        ringRef.current.material.opacity = p * 0.9;
+      }
     }
 
     // ---- Speech bubble timer ----
@@ -333,79 +590,102 @@ export default function Creature() {
       onClick={handlePet}
       onPointerOver={(e) => {
         e.stopPropagation();
-        document.body.style.cursor = 'pointer';
+        // Don't override the build-mode crosshair
+        if (!useGameStore.getState().placement.active) {
+          document.body.style.cursor = 'pointer';
+        }
       }}
       onPointerOut={(e) => {
         e.stopPropagation();
-        document.body.style.cursor = 'auto';
+        // Restore the build-mode crosshair if placement is active
+        document.body.style.cursor = useGameStore.getState().placement.active
+          ? 'crosshair'
+          : 'auto';
       }}
     >
+      {/* Celebration ring flash (evolution) */}
+      <mesh
+        ref={ringRef}
+        position={[0, 0.06, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        visible={false}
+      >
+        <ringGeometry args={[0.2, 0.32, 28]} />
+        <meshBasicMaterial
+          color="#ffd166"
+          transparent
+          opacity={0}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
+      </mesh>
+
       {/* Tail */}
       <mesh ref={tailRef} position={[0, 0.2, -0.24]} castShadow>
         <sphereGeometry args={[0.07, 12, 10]} />
-        <meshToonMaterial color={COLORS.accent} />
+        <meshToonMaterial color={colors.accent} />
       </mesh>
 
       {/* Feet */}
       <mesh ref={leftFootRef} position={[-0.11, 0.07, 0.08]} castShadow>
         <sphereGeometry args={[0.06, 12, 10]} />
-        <meshToonMaterial color={COLORS.ears} />
+        <meshToonMaterial color={colors.ears} />
       </mesh>
       <mesh ref={rightFootRef} position={[0.11, 0.07, 0.08]} castShadow>
         <sphereGeometry args={[0.06, 12, 10]} />
-        <meshToonMaterial color={COLORS.ears} />
+        <meshToonMaterial color={colors.ears} />
       </mesh>
 
       {/* Body + belly */}
       <mesh ref={bodyRef} position={[0, 0.22, 0]} castShadow>
         <sphereGeometry args={[0.2, 18, 14]} />
-        <meshToonMaterial color={COLORS.body} />
+        <meshToonMaterial color={colors.body} />
       </mesh>
       <mesh position={[0, 0.18, 0.1]} scale={[1, 0.8, 0.6]}>
         <sphereGeometry args={[0.13, 14, 10]} />
-        <meshToonMaterial color={COLORS.belly} />
+        <meshToonMaterial color={colors.belly} />
       </mesh>
 
       {/* Head */}
       <mesh ref={headRef} position={[0, 0.42, 0.02]} castShadow>
         <sphereGeometry args={[0.14, 16, 12]} />
-        <meshToonMaterial color={COLORS.body} />
+        <meshToonMaterial color={colors.body} />
       </mesh>
       {/* Ears */}
       <mesh position={[-0.1, 0.52, 0]} castShadow>
         <sphereGeometry args={[0.045, 10, 8]} />
-        <meshToonMaterial color={COLORS.ears} />
+        <meshToonMaterial color={colors.ears} />
       </mesh>
       <mesh position={[0.1, 0.52, 0]} castShadow>
         <sphereGeometry args={[0.045, 10, 8]} />
-        <meshToonMaterial color={COLORS.ears} />
+        <meshToonMaterial color={colors.ears} />
       </mesh>
 
       {/* Eyes (group scales Y for blinking) */}
       <group ref={eyeGroupRef}>
         <mesh position={[-0.055, 0.44, 0.14]}>
           <sphereGeometry args={[0.022, 8, 8]} />
-          <meshToonMaterial color={COLORS.eyes} />
+          <meshToonMaterial color={colors.eyes} />
         </mesh>
         <mesh position={[0.055, 0.44, 0.14]}>
           <sphereGeometry args={[0.022, 8, 8]} />
-          <meshToonMaterial color={COLORS.eyes} />
+          <meshToonMaterial color={colors.eyes} />
         </mesh>
       </group>
       {/* Cheeks */}
       <mesh position={[-0.09, 0.38, 0.11]}>
         <sphereGeometry args={[0.02, 8, 8]} />
-        <meshToonMaterial color={COLORS.cheeks} />
+        <meshToonMaterial color={colors.cheeks} />
       </mesh>
       <mesh position={[0.09, 0.38, 0.11]}>
         <sphereGeometry args={[0.02, 8, 8]} />
-        <meshToonMaterial color={COLORS.cheeks} />
+        <meshToonMaterial color={colors.cheeks} />
       </mesh>
 
       {/* Leaf tuft */}
       <mesh position={[0, 0.57, 0.02]} rotation={[0.2, 0, 0.3]} castShadow>
         <coneGeometry args={[0.035, 0.09, 6]} />
-        <meshToonMaterial color={COLORS.leaf} />
+        <meshToonMaterial color={colors.leaf} />
       </mesh>
 
       {/* Heart particles */}
@@ -421,6 +701,19 @@ export default function Creature() {
         ))}
       </group>
 
+      {/* Evolution spark particles */}
+      <group ref={sparkGroupRef} position={[0, 0.5, 0]}>
+        {sparks.map((sp, i) => (
+          <mesh
+            key={i}
+            ref={(el) => (sparkMeshesRef.current[i] = el)}
+            geometry={sparkGeometry}
+            material={sparkMaterials[i]}
+            visible={false}
+          />
+        ))}
+      </group>
+
       {/* Persistent mood indicator (subtle emoji above the head) */}
       <Html position={[0, 0.95, 0]} center style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
         <div
@@ -429,10 +722,12 @@ export default function Creature() {
             lineHeight: 1,
             textShadow: '0 1px 3px rgba(0,0,0,0.35)',
             transition: 'opacity 0.3s',
-            opacity: mood === 'content' ? 0.45 : 1,
+            opacity: mood === 'content' && !sleeping ? 0.45 : 1,
           }}
         >
-          {MOODS[mood].emoji}
+          <span className={sleeping ? 'sleep-emoji' : undefined}>
+            {sleeping ? '💤' : MOODS[mood].emoji}
+          </span>
         </div>
       </Html>
 
