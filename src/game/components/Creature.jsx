@@ -4,10 +4,20 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { gridToWorld, worldToGrid, getTile } from '../data/mapData';
 import { findPath, getRandomWalkableTarget } from '../ai/pathfinding';
+import { useGameStore, moodFromNeeds, MOODS } from '../state/gameStore';
 import { TILE_THICKNESS } from './Tile';
 
 const WALK_SPEED = 1.6; // tiles per second
 const HEART_COUNT = 6;
+
+// Mood → movement speed multiplier (a tired pet shuffles, a happy one bounds)
+const MOOD_SPEED = {
+  happy: 1.25,
+  content: 1,
+  hungry: 0.85,
+  tired: 0.6,
+  sad: 0.75,
+};
 
 const COLORS = {
   body: '#f5dc9a',
@@ -55,6 +65,10 @@ export default function Creature() {
   const heartMeshesRef = useRef([]);
 
   const [bubble, setBubble] = useState(null);
+
+  // Subscribe to the pet's mood (string selector → re-renders only on mood
+  // change, not on every needs tick). Used for the mood indicator above its head.
+  const mood = useGameStore((s) => moodFromNeeds(s.needs));
 
   // Start on a grass tile near the island center
   const start = gridToWorld(4, 4);
@@ -145,9 +159,9 @@ export default function Creature() {
   };
 
   /** Advance along the path; consume as many waypoints as the frame allows. */
-  const stepAlongPath = (delta) => {
+  const stepAlongPath = (delta, speedMult = 1, restMult = 1) => {
     const s = state.current;
-    let remaining = WALK_SPEED * delta;
+    let remaining = WALK_SPEED * speedMult * delta;
 
     while (s.pathIndex < s.path.length && remaining > 0) {
       const waypoint = s.path[s.pathIndex];
@@ -170,16 +184,18 @@ export default function Creature() {
 
     if (s.pathIndex >= s.path.length) {
       s.mode = 'sit';
-      s.timer = 2.5 + Math.random() * 3;
+      // A tired pet rests longer
+      s.timer = (2.5 + Math.random() * 3) * restMult;
     }
   };
 
-  /** Click-to-pet: hearts burst, bounce, and a happy bubble. */
+  /** Click-to-pet: hearts burst, bounce, a happy bubble, +happiness. */
   const handlePet = (e) => {
     e.stopPropagation();
     petPause.current = 0.8;
     setBubble('hehe! ♥');
     bubbleTimer.current = 1.5;
+    useGameStore.getState().boostNeed('happiness', 8);
 
     hearts.forEach((h) => {
       h.active = true;
@@ -205,6 +221,13 @@ export default function Creature() {
     // gap, which would make the pet teleport across the island in one frame.
     const dt = Math.min(delta, 0.05);
 
+    // Mood read live (no re-render): drives speed + animation feel
+    const moodNow = moodFromNeeds(useGameStore.getState().needs);
+    const speedMult = MOOD_SPEED[moodNow];
+    const isTired = moodNow === 'tired';
+    const isHappy = moodNow === 'happy';
+    const isSad = moodNow === 'sad';
+
     // ---- State machine ----
     if (petPause.current > 0) {
       petPause.current -= dt; // petting freezes movement briefly
@@ -212,7 +235,7 @@ export default function Creature() {
       s.timer -= dt;
       if (s.timer <= 0) tryStartWalking();
     } else if (s.mode === 'walk') {
-      stepAlongPath(dt);
+      stepAlongPath(dt, speedMult, isTired ? 1.6 : 1);
     } else if (s.mode === 'sit') {
       s.timer -= dt;
       if (s.timer <= 0) {
@@ -231,32 +254,39 @@ export default function Creature() {
     );
     group.rotation.y = s.yaw;
 
-    // ---- Breathing / walking bob ----
+    // ---- Breathing / walking bob (mood-adjusted) ----
     const isWalking = s.mode === 'walk';
     const breathe = Math.sin(t * 2.5) * 0.02;
-    const bob = isWalking ? Math.abs(Math.sin(t * 9)) * 0.05 : 0;
+    // Happy pets bounce higher & faster; tired ones plod along
+    const bobFreq = isHappy ? 11 : isTired ? 5 : 9;
+    const bobAmp = isHappy ? 0.06 : isTired ? 0.03 : 0.05;
+    const bob = isWalking ? Math.abs(Math.sin(t * bobFreq)) * bobAmp : 0;
     if (bodyRef.current) {
       bodyRef.current.position.y = 0.22 + bob + (s.mode === 'sit' ? -0.06 : 0);
       bodyRef.current.scale.set(1 + breathe, 1 - breathe * 0.6, 1 + breathe);
     }
-    if (headRef.current) headRef.current.position.y = 0.42 + bob * 0.6;
+    if (headRef.current) {
+      // Tired/sad pets hang their head slightly
+      headRef.current.position.y = 0.42 + bob * 0.6 - (isTired ? 0.03 : isSad ? 0.02 : 0);
+    }
 
     // ---- Feet march / tuck ----
-    const footSwing = isWalking ? Math.sin(t * 9) * 0.5 : s.mode === 'sit' ? 0.3 : 0;
+    const footSwing = isWalking ? Math.sin(t * bobFreq) * 0.5 : s.mode === 'sit' ? 0.3 : 0;
     if (leftFootRef.current) leftFootRef.current.rotation.x = footSwing;
     if (rightFootRef.current) rightFootRef.current.rotation.x = -footSwing;
 
-    // ---- Tail wag ----
+    // ---- Tail wag (happy = fast, sad = limp) ----
     if (tailRef.current) {
+      const wag = isSad ? 0.6 : isHappy ? 1.4 : 1;
       tailRef.current.rotation.z =
-        Math.sin(t * (isWalking ? 14 : 5)) * (s.mode === 'sit' ? 0.3 : 0.22);
+        Math.sin(t * (isWalking ? 14 : 5)) * (s.mode === 'sit' ? 0.3 : 0.22) * wag;
     }
 
-    // ---- Blinking ----
+    // ---- Blinking (tired pets blink more) ----
     s.blinkTimer -= dt;
     if (s.blinkTimer <= 0 && s.blinkHold <= 0) {
       s.blinkHold = 0.12;
-      s.blinkTimer = 2 + Math.random() * 3;
+      s.blinkTimer = (isTired ? 0.8 : 2) + Math.random() * (isTired ? 1 : 3);
     }
     if (s.blinkHold > 0) s.blinkHold -= dt;
     if (eyeGroupRef.current) {
@@ -390,6 +420,21 @@ export default function Creature() {
           />
         ))}
       </group>
+
+      {/* Persistent mood indicator (subtle emoji above the head) */}
+      <Html position={[0, 0.95, 0]} center style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
+        <div
+          style={{
+            fontSize: 13,
+            lineHeight: 1,
+            textShadow: '0 1px 3px rgba(0,0,0,0.35)',
+            transition: 'opacity 0.3s',
+            opacity: mood === 'content' ? 0.45 : 1,
+          }}
+        >
+          {MOODS[mood].emoji}
+        </div>
+      </Html>
 
       {/* Speech bubble */}
       {bubble && (

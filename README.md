@@ -6,6 +6,7 @@ A cozy 3D island-builder & virtual-pet game built with **React**, **React Three 
 
 - **Isometric 3D island** — a 12×12 low-poly, toon-shaded tile grid (water, shallow, sand, grass, hills) viewed from a locked isometric camera with pan/zoom controls.
 - **A wandering pet** — a cute critter that strolls the island using A\* pathfinding over walkable tiles, with idle/walk/sit animations, blinking, and click-to-pet hearts.
+- **Needs & moods** — hunger/energy/happiness drain over the shared game clock, mood (happy/content/hungry/tired/sad) changes walk speed and animations, and a HUD shows live bars.
 - **Gathering economy** — click tiles to harvest resources by terrain (🍓 berries from grass, 🐚 shells from sand, 🪨 stones from hills) with animated 3D pickups and a live inventory HUD.
 - **Living world** — animated bobbing water, seeded palm trees/rocks/flowers, a slow day-night lighting cycle, and procedural ocean ambience (WebAudio, no audio files).
 - **Shared game clock** — a Zustand-backed time system with pause and 1×/2×/4× speed controls that every future system (needs, crops) can tick off.

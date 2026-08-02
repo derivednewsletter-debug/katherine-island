@@ -35,6 +35,13 @@ export const useGameStore = create((set) => ({
     stone: 0,
   },
 
+  // ── Creature needs (0–100) ──
+  needs: {
+    hunger: 100,
+    energy: 100,
+    happiness: 100,
+  },
+
   // ── Actions ──
   /** Advance the clock by `gameDt` game-seconds (called by gameClock loop). */
   advanceTime: (gameDt) => set((s) => ({ time: s.time + gameDt })),
@@ -49,7 +56,57 @@ export const useGameStore = create((set) => ({
       if (!(resource in s.inventory)) return s;
       return { inventory: { ...s.inventory, [resource]: s.inventory[resource] + amount } };
     }),
+
+  /**
+   * Drain the creature's needs by `gameDt` game-seconds (called by the
+   * needs system, which ticks off the shared game clock). Clamped to 0.
+   */
+  drainNeeds: (gameDt) =>
+    set((s) => ({
+      needs: {
+        hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * gameDt),
+        energy: Math.max(0, s.needs.energy - NEED_DRAIN.energy * gameDt),
+        happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * gameDt),
+      },
+    })),
+
+  /** Boost a single need (e.g. petting raises happiness). Clamped to 100. */
+  boostNeed: (need, amount) =>
+    set((s) => {
+      if (!(need in s.needs)) return s;
+      return {
+        needs: { ...s.needs, [need]: Math.min(100, s.needs[need] + amount) },
+      };
+    }),
 }));
+
+/** How fast each need drains per game-second. */
+export const NEED_DRAIN = {
+  hunger: 0.45,
+  energy: 0.3,
+  happiness: 0.22,
+};
+
+/** Mood display config keyed by mood id. */
+export const MOODS = {
+  happy: { label: 'Happy', emoji: '😄' },
+  content: { label: 'Content', emoji: '🙂' },
+  hungry: { label: 'Hungry', emoji: '😋' },
+  tired: { label: 'Tired', emoji: '😴' },
+  sad: { label: 'Sad', emoji: '😢' },
+};
+
+/**
+ * Derive the pet's mood from its needs. Most-critical need wins; a fully
+ * cared-for pet is happy, anything else is content.
+ */
+export function moodFromNeeds(needs) {
+  if (needs.energy < 25) return 'tired';
+  if (needs.hunger < 25) return 'hungry';
+  if (needs.happiness < 25) return 'sad';
+  if (needs.hunger > 70 && needs.energy > 70 && needs.happiness > 70) return 'happy';
+  return 'content';
+}
 
 /**
  * Derive human-friendly day / phase from game-seconds.

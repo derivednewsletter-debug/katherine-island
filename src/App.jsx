@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import GameScene from './game/components/GameScene';
 import InventoryHud from './game/ui/InventoryHud';
+import NeedsHud from './game/ui/NeedsHud';
 import TimeControl from './game/ui/TimeControl';
 import { startGameClock } from './game/state/gameClock';
+import { startNeedsSystem } from './game/state/needs';
 import { startOcean, stopOcean, isOceanPlaying } from './game/audio/ocean';
 
 /**
@@ -13,9 +15,11 @@ import { startOcean, stopOcean, isOceanPlaying } from './game/audio/ocean';
 export default function App() {
   const [soundOn, setSoundOn] = useState(false);
 
-  // Boot the shared game-clock loop once (idempotent, StrictMode-safe)
+  // Boot the shared game-clock loop and the needs drainer once
+  // (both idempotent / StrictMode-safe)
   useEffect(() => {
     startGameClock();
+    startNeedsSystem();
   }, []);
 
   const toggleSound = () => {
@@ -34,6 +38,9 @@ export default function App() {
 
       {/* Inventory HUD (top-center) */}
       <InventoryHud />
+
+      {/* Creature needs (top-right) */}
+      <NeedsHud />
 
       {/* Game clock / pause / speed (bottom-left) */}
       <TimeControl />

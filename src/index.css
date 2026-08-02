@@ -45,3 +45,18 @@ canvas {
     color: #fff;
   }
 }
+
+/* Critical need bar pulses to draw attention */
+.need-bar-low {
+  animation: need-bar-low 1s ease-in-out infinite;
+}
+
+@keyframes need-bar-low {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
