@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { PET_SPECIES } from '../data/species';
+import SvgIcon from './SvgIcon';
+
+const SPECIES_ICON_MAP = { rabbit: 'egg', cat: 'cat', duck: 'duck' };
 
 /**
  * Hatch-time naming modal. When an egg hatches, the store sets
@@ -70,7 +73,9 @@ export default function NamingModal() {
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 40, lineHeight: 1 }}>{sp.emoji}</div>
+        <div style={{ fontSize: 40, lineHeight: 1 }}>
+          <SvgIcon name={SPECIES_ICON_MAP[sp.id] || 'egg'} size={40} />
+        </div>
         <div style={{ fontSize: 17, fontWeight: 800 }}>
           Your egg hatched!
         </div>
@@ -113,7 +118,7 @@ export default function NamingModal() {
           onMouseEnter={(e) => (e.currentTarget.style.background = '#ffe08a')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#ffd166')}
         >
-          Name {value.trim() ? `“${value.trim()}”` : `the ${sp.label.toLowerCase()}`} 🎉
+          Name {value.trim() ? `“${value.trim()}”` : `the ${sp.label.toLowerCase()}`} <SvgIcon name="star" size={16} />
         </button>
         <div style={{ fontSize: 11, opacity: 0.6 }}>
           Enter or Esc to confirm · leave blank for {sp.label}

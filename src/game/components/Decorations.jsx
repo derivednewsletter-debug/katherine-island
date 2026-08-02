@@ -94,6 +94,29 @@ export function Flower({ scale = 1, rot = 0, tint }) {
   );
 }
 
+/** Low-poly jungle bush: dense cluster of leaves. */
+export function Bush({ scale = 1, rot = 0, tint }) {
+  return (
+    <group scale={scale} rotation={[0, rot, 0]}>
+      {[0, 1, 2, 3].map((i) => {
+        const angle = (i / 4) * Math.PI * 2;
+        const sx = Math.cos(angle) * 0.08;
+        const sz = Math.sin(angle) * 0.08;
+        return (
+          <mesh key={i} position={[sx, 0.12, sz]} castShadow>
+            <sphereGeometry args={[0.1, 6, 6]} />
+            <meshToonMaterial {...mat(tint, '#3a8c5a')} />
+          </mesh>
+        );
+      })}
+      <mesh position={[0, 0.05, 0]} castShadow>
+        <cylinderGeometry args={[0.03, 0.03, 0.16, 5]} />
+        <meshToonMaterial {...mat(tint, '#8d6b4b')} />
+      </mesh>
+    </group>
+  );
+}
+
 /** Low-poly fountain: stone basin + a shimmering water jet. */
 export function Fountain({ scale = 1, rot = 0, tint }) {
   return (
@@ -157,6 +180,7 @@ export const KIND_COMPONENT = {
   palm: PalmTree,
   rock: Rock,
   flower: Flower,
+  bush: Bush,
   fountain: Fountain,
   lantern: Lantern,
 };
@@ -212,6 +236,12 @@ const PARTS = {
     { geom: 'sphere', args: [0.07, 10, 8], pos: [0, 0.38, 0], rot: [0, 0, 0], color: '#ffcf6e' },
     { geom: 'cone', args: [0.06, 0.08, 6], pos: [0, 0.47, 0], rot: [0, 0, 0], color: '#6b4a2a' },
   ],
+  bush: [
+    { geom: 'sphere', args: [0.1, 6, 6], pos: [0.08, 0.12, 0], rot: [0, 0, 0], color: '#3a8c5a' },
+    { geom: 'sphere', args: [0.1, 6, 6], pos: [-0.08, 0.12, 0.05], rot: [0, 0, 0], color: '#3a8c5a' },
+    { geom: 'sphere', args: [0.1, 6, 6], pos: [0, 0.12, -0.08], rot: [0, 0, 0], color: '#3a8c5a' },
+    { geom: 'cylinder', args: [0.03, 0.03, 0.16, 5], pos: [0, 0.05, 0], rot: [0, 0, 0], color: '#8d6b4b' },
+  ],
 };
 
 /**
@@ -222,7 +252,7 @@ export default function Decorations() {
   const decorations = useGameStore((s) => s.decorations);
 
   const grouped = useMemo(() => {
-    const g = { palm: [], rock: [], flower: [], fountain: [], lantern: [] };
+    const g = { palm: [], rock: [], flower: [], fountain: [], lantern: [], bush: [] };
     for (const d of decorations) {
       if (g[d.kind]) g[d.kind].push(d);
     }

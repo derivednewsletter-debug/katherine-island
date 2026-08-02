@@ -129,6 +129,11 @@ export function startSaveSync() {
   const unsub = useGameStore.subscribe((state, prev) => {
     const sliceChanged =
       state.inventory !== prev.inventory ||
+      state.currency !== prev.currency ||
+      state.tools !== prev.tools ||
+      state.playerPos !== prev.playerPos ||
+      state.playerDir !== prev.playerDir ||
+      state.playerTool !== prev.playerTool ||
       state.needs !== prev.needs ||
       state.stage !== prev.stage ||
       state.carePoints !== prev.carePoints ||

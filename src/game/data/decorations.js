@@ -19,12 +19,14 @@ import { TILE_THICKNESS } from '../components/Tile';
 
 /** Build palette — what the player can place and what the HUD shows. */
 export const DECORATION_TYPES = {
-  palm: { label: 'Palm', emoji: '🌴', color: '#4ade80' },
-  rock: { label: 'Rock', emoji: '🪨', color: '#9aa3ab' },
-  flower: { label: 'Flower', emoji: '🌸', color: '#ff9eb0' },
-  fountain: { label: 'Fountain', emoji: '⛲', color: '#5fc3e8' },
-  lantern: { label: 'Lantern', emoji: '🏮', color: '#ffcf6e' },
-  erase: { label: 'Eraser', emoji: '🧹', color: '#f87171' },
+  palm: { label: 'Palm', color: '#4ade80' },
+  rock: { label: 'Rock', color: '#9aa3ab' },
+  flower: { label: 'Flower', color: '#ff9eb0' },
+  fountain: { label: 'Fountain', color: '#5fc3e8' },
+  lantern: { label: 'Lantern', color: '#ffcf6e' },
+  erase: { label: 'Eraser', color: '#f87171' },
+  // Scatter-only (not in build palette): jungle undergrowth
+  bush: { label: 'Bush', color: '#3a8c5a' },
 };
 
 /** Decoration kinds available in the palette for free (not shop unlocks). */
@@ -69,9 +71,10 @@ export function generateInitialDecorations() {
       let kind = null;
 
       if (tile.type === 'grass' || tile.type === 'jungle') {
-        if (r < 0.07) kind = 'palm';
-        else if (r < 0.11) kind = 'rock';
-        else if (r < 0.19) kind = 'flower';
+        if (r < 0.05) kind = 'palm';
+        else if (r < 0.09) kind = 'rock';
+        else if (r < 0.15) kind = 'flower';
+        else if (r < 0.22 && tile.type === 'jungle') kind = 'bush'; // jungle undergrowth
       } else if (tile.type === 'sand') {
         if (r < 0.1) kind = 'palm';
         else if (r < 0.16) kind = 'rock';

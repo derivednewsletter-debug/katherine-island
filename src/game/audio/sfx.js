@@ -243,8 +243,27 @@ export function playEvolutionFanfare() {
   sp.stop(t + 1.15);
 }
 
-/* ── Music bed ───────────────────────────────────────────────────────────
-   A gentle, self-scheduling chord loop. Every CHORD_SECONDS it reads the
+/* ── Footstep ───────────────────────────────────────────────────────────────
+   A tiny muted "thud" for the player walking on grass/tiles. */
+export function playStep() {
+  const ac = ready();
+  if (!ac) return;
+  const t = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(180, t);
+  osc.frequency.exponentialRampToValueAtTime(60, t + 0.04);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.05, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  osc.connect(g);
+  g.connect(master);
+  osc.start(t);
+  osc.stop(t + 0.07);
+}
+
+/* ── Music bed ─────────────────────────────────────────────────────────────
+    A gentle, self-scheduling chord loop. Every CHORD_SECONDS it reads the
    game clock's day/night phase and plays the next chord of the matching
    progression as soft sine pads through a slowly-moving lowpass filter.
    A sparse pentatonic bell occasionally floats over the top.

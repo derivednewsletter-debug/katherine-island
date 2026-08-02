@@ -11,9 +11,11 @@
  *    to the matching pile; planting a crop consumes one.
  *  - 'exotic': a one-time unlock that reveals a RARE crop (the night
  *    flower) in the plant palette; its seeds are sold afterwards.
+ *  - 'tool': a farming tool (axe, hoe) — buy replacements for coins.
+ *  - 'plant': a tree/bush decoration that can be placed on the island.
  *
- * Prices are keyed by resource id ({ berry, shell, stone }) so items can
- * cost a mix of gathered goods.
+ * Prices are keyed by resource id ({ berry, shell, stone, wood, coin })
+ * so items can cost a mix of gathered goods or coins.
  */
 import { PET_SPECIES } from './species';
 
@@ -145,23 +147,63 @@ export const SHOP_ITEMS = [
     price: { flower: 5 },
     count: 2,
   },
+
+  // ── Farming tools (buy extra tools / replacements) ──
+  {
+    id: 'tool:axe',
+    kind: 'tool',
+    tool: 'axe',
+    name: 'Axe',
+    emoji: '🪓',
+    desc: 'Chop down trees for wood. (You start with one!)',
+    price: { coin: 8 },
+  },
+  {
+    id: 'tool:hoe',
+    kind: 'tool',
+    tool: 'hoe',
+    name: 'Hoe',
+    emoji: '🌾',
+    desc: 'Till soil for planting crops. (You start with one!)',
+    price: { coin: 6 },
+  },
+
+  // ── Sell-back prices (player can sell gathered resources for coins) ──
+  // These appear in the shop as "sell" options.
 ];
+
+/** Buyback prices: how many coins a resource sells for. */
+export const SELL_PRICES = {
+  berry: 2,
+  shell: 3,
+  stone: 3,
+  wood: 5,
+  flower: 4,
+  fruit: 6,
+  herb: 5,
+};
 
 /** Find an item by id. */
 export function shopItem(id) {
   return SHOP_ITEMS.find((item) => item.id === id) ?? null;
 }
 
-/** Can the player afford `price` with the given inventory? */
-export function canAfford(price, inventory) {
-  return Object.entries(price).every(([resource, amount]) => (inventory[resource] ?? 0) >= amount);
+/** Can the player afford `price` given inventory + currency? */
+export function canAfford(price, inventory, currency = 0) {
+  const invTotal = { ...inventory, coin: currency };
+  return Object.entries(price).every(([resource, amount]) => (invTotal[resource] ?? 0) >= amount);
 }
 
-/** Subtract a price from the inventory (assumes affordability was checked). */
-export function deductPrice(price, inventory) {
+/** Subtract a price from inventory + currency (assumes affordability checked). */
+export function deductPrice(price, inventory, currency = 0) {
   const next = { ...inventory };
+  let nextCurrency = currency;
   for (const [resource, amount] of Object.entries(price)) {
-    next[resource] = (next[resource] ?? 0) - amount;
+    if (resource === 'coin') {
+      nextCurrency -= amount;
+    } else {
+      next[resource] = (next[resource] ?? 0) - amount;
+    }
   }
-  return next;
+  return { inventory: next, currency: nextCurrency };
 }

@@ -2,11 +2,17 @@ import React from 'react';
 import { useGameStore, moodFromNeeds, MOODS, growthInfo, timeOfDay, FEED_BY_RESOURCE } from '../state/gameStore';
 import { PET_SPECIES } from '../data/species';
 import { RESOURCES } from '../data/resources';
+import SvgIcon from './SvgIcon';
+
+// Map need keys to icon names
+const NEED_ICONS = { hunger: 'farm', energy: 'time', happiness: 'heart' };
+// Map mood states to icon names
+const MOOD_ICONS = { happy: 'happy', neutral: 'neutral', sad: 'sad' };
 
 const BARS = [
-  { key: 'hunger', label: 'Hunger', emoji: '🍗', color: '#ff9f43' },
-  { key: 'energy', label: 'Energy', emoji: '⚡', color: '#ffd166' },
-  { key: 'happiness', label: 'Happiness', emoji: '💛', color: '#ff6b9d' },
+  { key: 'hunger', label: 'Hunger', color: '#ff9f43' },
+  { key: 'energy', label: 'Energy', color: '#ffd166' },
+  { key: 'happiness', label: 'Happiness', color: '#ff6b9d' },
 ];
 
 /**
@@ -56,28 +62,28 @@ export default function NeedsHud() {
     const p = s.pets.find((x) => x.id === s.selectedPetId);
     return p?.name ?? 'Pet';
   });
-  const petEmoji = useGameStore((s) => {
-    if (isStarter) return '🐾';
+  const petSpecies = useGameStore((s) => {
+    if (isStarter) return null;
     const p = s.pets.find((x) => x.id === s.selectedPetId);
-    return p ? PET_SPECIES[p.species]?.emoji ?? '🐾' : '🐾';
+    return p?.species;
   });
 
-  // Pet roster for the selector chips: [{ id, emoji, name }] for starter +
+  // Pet roster for the selector chips: [{ id, icon, name }] for starter +
   // every hatched pet. Serialized to a stable string so the selector only
   // re-renders when a pet is added/renamed (names can contain any char).
   const roster = useGameStore((s) => {
-    const starter = { id: 'starter', emoji: '🐾', name: 'My pet' };
+    const starter = { id: 'starter', icon: 'egg', name: 'My pet' };
     const pets = s.pets.map((p) => ({
       id: p.id,
-      emoji: PET_SPECIES[p.species]?.emoji ?? '🐾',
+      icon: 'egg',
       name: p.name,
     }));
     return JSON.stringify([starter, ...pets]);
   });
   const chips = JSON.parse(roster || '[]');
 
-  // While asleep the mood header shows the sleeping face instead of mood.
-  const moodEmoji = sleeping ? '💤' : MOODS[mood].emoji;
+   // While asleep the mood header shows the sleeping icon instead of mood.
+  const moodIcon = sleeping ? 'sleep' : MOOD_ICONS[mood];
   const moodLabel = sleeping ? 'Sleeping' : MOODS[mood].label;
 
   // Growth stage + progress — only the starter evolves; hatched pets have
@@ -92,8 +98,10 @@ export default function NeedsHud() {
   const berries = useGameStore((s) => s.inventory.berry);
   const heldFeedable = holding && FEED_BY_RESOURCE[holding] ? holding : null;
   const feedResource = heldFeedable ?? (berries >= 1 ? 'berry' : null);
-  const feedEmoji = feedResource ? (RESOURCES[feedResource]?.emoji ?? '🍓') : '🍓';
+  const feedIconName = feedResource ? (ICON_MAP[feedResource] || 'berry') : 'berry';
   const feed = () => useGameStore.getState().feedPet(selectedPetId);
+
+  const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 
   return (
     <div
@@ -116,67 +124,67 @@ export default function NeedsHud() {
         maxWidth: 210,
       }}
     >
-      {/* Pet selector — click to swap whose needs this panel shows */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 4,
-          flexWrap: 'wrap',
-          paddingBottom: 6,
-          borderBottom: '1px solid rgba(255,255,255,0.15)',
-        }}
-      >
-        {chips.map((chip) => {
-          const active = chip.id === selectedPetId;
-          return (
-            <button
-              key={chip.id}
-              onClick={() => useGameStore.getState().selectPet(chip.id)}
-              title={`Show ${chip.name}'s needs`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 8px',
-                borderRadius: 999,
-                border: active ? '1px solid rgba(126,232,250,0.8)' : '1px solid rgba(255,255,255,0.18)',
-                background: active ? 'rgba(126,232,250,0.2)' : 'rgba(255,255,255,0.06)',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: active ? 800 : 600,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-                transition: 'background 0.15s',
-                maxWidth: 130,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span>{chip.emoji}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{chip.name}</span>
-            </button>
-          );
-        })}
-      </div>
+       {"  /* Pet selector — click to swap whose needs this panel shows */"}
+       <div
+         style={{
+           display: 'flex',
+           gap: 4,
+           flexWrap: 'wrap',
+           paddingBottom: 6,
+           borderBottom: '1px solid rgba(255,255,255,0.15)',
+         }}
+       >
+         {chips.map((chip) => {
+           const active = chip.id === selectedPetId;
+           return (
+             <button
+               key={chip.id}
+               onClick={() => useGameStore.getState().selectPet(chip.id)}
+               title={`Show ${chip.name}'s needs`}
+               style={{
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: 4,
+                 padding: '3px 8px',
+                 borderRadius: 999,
+                 border: active ? '1px solid rgba(126,232,250,0.8)' : '1px solid rgba(255,255,255,0.18)',
+                 background: active ? 'rgba(126,232,250,0.2)' : 'rgba(255,255,255,0.06)',
+                 color: '#fff',
+                 fontSize: 11,
+                 fontWeight: active ? 800 : 600,
+                 fontFamily: 'inherit',
+                 cursor: 'pointer',
+                 pointerEvents: 'auto',
+                 transition: 'background 0.15s',
+                 maxWidth: 130,
+                 overflow: 'hidden',
+                 textOverflow: 'ellipsis',
+                 whiteSpace: 'nowrap',
+               }}
+             >
+               <SvgIcon name={MOOD_ICONS[mood] || 'happy'} size={14} />
+               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{chip.name}</span>
+             </button>
+           );
+         })}
+       </div>
 
-      {/* Mood header — sleeping face while the pet sleeps */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-        <span style={{ fontSize: 16 }}>{petEmoji}</span>
-        <span className={sleeping ? 'sleep-emoji' : undefined} style={{ fontSize: 16 }}>
-          {moodEmoji}
-        </span>
-        <span style={{ fontWeight: 700, fontSize: 13 }}>{petName}</span>
-        <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600 }}>· {moodLabel}</span>
-      </div>
+       {/* Mood header — sleeping icon while the pet sleeps */}
+       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+         <SvgIcon name="egg" size={16} />
+         <span className={sleeping ? 'sleep-emoji' : undefined} style={{ fontSize: 16 }}>
+           <SvgIcon name={moodIcon} size={16} />
+         </span>
+         <span style={{ fontWeight: 700, fontSize: 13 }}>{petName}</span>
+         <span style={{ fontSize: 11, opacity: 0.75, fontWeight: 600 }}>· {moodLabel}</span>
+       </div>
 
       {BARS.map((bar) => {
         const value = needs[bar.key];
         const low = value < 25;
         return (
           <div key={bar.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 14, textAlign: 'center' }}>{bar.emoji}</span>
+            <SvgIcon name={NEED_ICONS[bar.key]} size={14} />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                 <span style={{ opacity: 0.8 }}>{bar.label}</span>
@@ -219,12 +227,12 @@ export default function NeedsHud() {
             borderTop: '1px solid rgba(255,255,255,0.15)',
           }}
         >
-          <span style={{ width: 14, textAlign: 'center', fontSize: 14 }}>{growth.emoji}</span>
-          <div style={{ flex: 1 }}>
+         <SvgIcon name="star" size={14} />
+         <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 11 }}>{growth.label}</span>
               {growth.isMax ? (
-                <span style={{ opacity: 0.75, fontSize: 11 }}>Fully grown ✨</span>
+                <span style={{ opacity: 0.75, fontSize: 11 }}>Fully grown <SvgIcon name="star" size={10} /></span>
               ) : (
                 <span style={{ opacity: 0.8, fontSize: 11 }}>
                   {growth.current}/{growth.required} to {growth.nextLabel}
@@ -260,26 +268,31 @@ export default function NeedsHud() {
       <button
         onClick={feed}
         disabled={!feedResource}
-        style={{
-          marginTop: 6,
-          padding: '5px 10px',
-          borderRadius: 999,
-          border: `1px solid ${feedResource ? 'rgba(255,93,126,0.6)' : 'rgba(255,255,255,0.2)'}`,
-          background: feedResource ? 'rgba(255,93,126,0.22)' : 'rgba(255,255,255,0.08)',
-          color: feedResource ? '#ffd6de' : 'rgba(255,255,255,0.45)',
-          fontFamily: '"Segoe UI", system-ui, sans-serif',
-          fontSize: 12,
-          fontWeight: 700,
-          cursor: feedResource ? 'pointer' : 'not-allowed',
-          pointerEvents: 'auto',
-          transition: 'background 0.2s, transform 0.15s',
-        }}
-        onMouseEnter={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.35)')}
-        onMouseLeave={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.22)')}
-      >
+         style={{
+           display: 'flex',
+           alignItems: 'center',
+           justifyContent: 'center',
+           gap: 6,
+           marginTop: 6,
+           padding: '5px 10px',
+           borderRadius: 999,
+           border: `1px solid ${feedResource ? 'rgba(255,93,126,0.6)' : 'rgba(255,255,255,0.2)'}`,
+           background: feedResource ? 'rgba(255,93,126,0.22)' : 'rgba(255,255,255,0.08)',
+           color: feedResource ? '#ffd6de' : 'rgba(255,255,255,0.45)',
+           fontFamily: '"Segoe UI", system-ui, sans-serif',
+           fontSize: 12,
+           fontWeight: 700,
+           cursor: feedResource ? 'pointer' : 'not-allowed',
+           pointerEvents: 'auto',
+           transition: 'background 0.2s, transform 0.15s',
+         }}
+         onMouseEnter={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.35)')}
+         onMouseLeave={(e) => feedResource && (e.currentTarget.style.background = 'rgba(255,93,126,0.22)')}
+       >
+        <SvgIcon name={feedIconName} size={14} />
         {heldFeedable
-          ? `${feedEmoji} Feeding ${petName}…`
-          : `${feedEmoji} Feed ${petName} (${berries})`}
+          ? `Feeding ${petName}…`
+          : `Feed ${petName} (${berries})`}
       </button>
     </div>
   );

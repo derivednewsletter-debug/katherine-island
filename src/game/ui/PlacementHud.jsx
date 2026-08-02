@@ -2,6 +2,24 @@ import React, { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
 import { DECORATION_TYPES, BASE_KINDS } from '../data/decorations';
 import { CROPS } from '../data/crops';
+import SvgIcon from './SvgIcon';
+
+// Map decoration/crop ids to icon names
+const ICON_FOR_TOOL = {
+  palm: 'plant',
+  rock: 'stone',
+  flower: 'flower',
+  fountain: 'shop',
+  lantern: 'shop',
+  erase: 'close',
+};
+const ICON_FOR_CROP = {
+  berryBush: 'berry',
+  flowerPatch: 'flower',
+  fruitTree: 'fruit',
+  mountainHerb: 'herb',
+  nightFlower: 'moon',
+};
 
 // Base tools, plus shop-bought decorations appended as they're unlocked.
 // (Erase always stays last.)
@@ -52,8 +70,9 @@ export default function PlacementHud() {
         border: placement.active ? '1px solid rgba(255,255,255,0.35)' : '1px solid transparent',
       }}
     >
-      <span style={{ fontSize: 13, opacity: 0.8, marginRight: 2, whiteSpace: 'nowrap' }}>
-        🛠️ Decorate
+      <span style={{ fontSize: 13, opacity: 0.8, marginRight: 2, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <SvgIcon name="shop" size={14} />
+        Decorate
       </span>
 
       {TOOLS.map((tool) => {
@@ -66,20 +85,20 @@ export default function PlacementHud() {
             onClick={() => useGameStore.getState().togglePlacement(tool)}
             title={`Place a ${config.label} (click a tile to plant, Esc to exit)`}
           >
-            <span style={{ fontSize: 18 }}>{config.emoji}</span>
+            <SvgIcon name={ICON_FOR_TOOL[tool] || 'plant'} size={18} />
             <span className="palette-btn-label">{config.label}</span>
           </button>
         );
       })}
 
       {placement.active && (
-        <span style={{ fontSize: 12, opacity: 0.75, whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 12, opacity: 0.75, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
           {placement.tool === 'erase'
-            ? 'Click a decoration or crop to remove it · Esc to exit'
+            ? <><SvgIcon name="close" size={12} /> Click a decoration or crop to remove · Esc to exit</>
             : placement.tool?.startsWith('crop:')
               ? (seeds[placement.tool.slice(5)] ?? 0) > 0
-                ? 'Green = right biome · click to plant · Esc to exit'
-                : '🌱 Out of seeds — buy some at the shop · Esc to exit'
+                ? <>'Green = right biome · click to plant · Esc to exit'</>
+                : <><SvgIcon name="plant" size={12} /> Out of seeds — buy some at the shop · Esc to exit</>
               : 'Click land to plant · Esc to exit'}
         </span>
       )}
@@ -103,7 +122,9 @@ export default function PlacementHud() {
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: 12, opacity: 0.8, marginRight: 2 }}>🌱 Plant</span>
+        <span style={{ fontSize: 12, opacity: 0.8, marginRight: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <SvgIcon name="plant" size={12} /> Plant
+        </span>
         {Object.values(CROPS).map((crop) => {
           const tool = `crop:${crop.id}`;
           const isActive = placement.active && placement.tool === tool;
@@ -116,9 +137,9 @@ export default function PlacementHud() {
                 key={crop.id}
                 className="palette-btn locked"
                 onClick={() => useGameStore.getState().toggleShop()}
-                title={`${crop.emoji} ${crop.label} — unlock at the shop's exotic section`}
+                title={`${crop.label} — unlock at the shop's exotic section`}
               >
-                <span style={{ fontSize: 16 }}>🔒</span>
+                <SvgIcon name="question" size={16} />
                 <span className="palette-btn-label">{crop.label}</span>
               </button>
             );
@@ -130,7 +151,7 @@ export default function PlacementHud() {
               onClick={() => useGameStore.getState().togglePlacement(tool)}
               title={`${crop.label} — ${crop.hint} · ${seedCount > 0 ? `${seedCount} seeds owned` : 'no seeds — buy at the shop'}`}
             >
-              <span style={{ fontSize: 16 }}>{crop.emoji}</span>
+              <SvgIcon name={ICON_FOR_CROP[crop.id] || 'plant'} size={16} />
               <span className="palette-btn-label">{crop.label}</span>
               <span
                 className="palette-seed-badge"

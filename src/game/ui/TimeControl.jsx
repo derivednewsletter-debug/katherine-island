@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore, timeOfDay } from '../state/gameStore';
 import { clearRemoteSave } from '../state/saveSync';
+import SvgIcon from './SvgIcon';
 
 const SPEEDS = [1, 2, 4];
 
@@ -40,7 +41,7 @@ export default function TimeControl() {
   }, [togglePause]);
 
   const { day, phase, isDay } = timeOfDay(time);
-  const icon = isDay ? '☀️' : '🌙';
+  const iconName = isDay ? 'sun' : 'moon';
   const nextSpeed = SPEEDS[(SPEEDS.indexOf(timeScale) + 1) % SPEEDS.length];
 
   return (
@@ -71,9 +72,9 @@ export default function TimeControl() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
-          <span>{icon}</span>
-          <span>Day {day}</span>
-        </div>
+            <SvgIcon name={iconName} size={16} />
+            <span>Day {day}</span>
+          </div>
         {/* Day-cycle progress bar */}
         <div
           style={{
@@ -113,7 +114,7 @@ export default function TimeControl() {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        {timeScale}x
+        {timeScale}× Speed
       </button>
 
       {/* Dramatic jump straight to dusk ("night falls") */}
@@ -124,7 +125,7 @@ export default function TimeControl() {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        🌙 Night
+        <SvgIcon name="moon" size={14} /> Night
       </button>
 
       {/* Wipe the save (two clicks to avoid accidents) */}
@@ -141,6 +142,9 @@ export default function TimeControl() {
         style={{
           ...buttonStyle,
           background: confirmReset ? 'rgba(214, 69, 65, 0.7)' : 'rgba(0, 0, 0, 0.55)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
         }}
         title="Wipe the save and start fresh"
         onMouseEnter={(e) =>
@@ -154,7 +158,7 @@ export default function TimeControl() {
             : 'rgba(0, 0, 0, 0.55)')
         }
       >
-        {confirmReset ? '⚠️ Sure?' : '🔄 Reset'}
+        {confirmReset ? 'Sure?' : <> <SvgIcon name="warning" size={14} /> Reset</>}
       </button>
     </div>
   );

@@ -2,11 +2,13 @@ import React from 'react';
 import { useGameStore, FEED_BY_RESOURCE } from '../state/gameStore';
 import { RESOURCES } from '../data/resources';
 import { PET_SPECIES } from '../data/species';
+import SvgIcon from './SvgIcon';
 
 // Gather + crop-harvest resources. Berry/fruit/herb/flower are feedable
 // treats (click to hold, then click the pet); shell/stone are plain.
-const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb'];
+const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood'];
 const FEEDABLE = Object.keys(FEED_BY_RESOURCE);
+const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 
 /**
  * Inventory HUD — reads the shared store and shows a glass chip per
@@ -16,6 +18,7 @@ const FEEDABLE = Object.keys(FEED_BY_RESOURCE);
 export default function InventoryHud() {
   // Subscribe to just the inventory slice of the global store
   const inventory = useGameStore((s) => s.inventory);
+  const currency = useGameStore((s) => s.currency);
   const holding = useGameStore((s) => s.holding);
   const ownedEggs = useGameStore((s) => s.ownedEggs);
   const placedEggs = useGameStore((s) => s.placedEggs);
@@ -38,7 +41,28 @@ export default function InventoryHud() {
         gap: 8,
         pointerEvents: 'none',
       }}
-    >
+      >
+      {/* Coin balance chip */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 14px',
+          background: 'rgba(255, 215, 0, 0.25)',
+          borderRadius: 999,
+          color: '#fff',
+          fontFamily: '"Segoe UI", system-ui, sans-serif',
+          fontSize: 14,
+          backdropFilter: 'blur(8px)',
+          border: '1px solid #ffd700',
+          boxShadow: '0 0 8px rgba(255,215,0,0.3)',
+          pointerEvents: 'auto',
+        }}
+      >
+        <SvgIcon name="coin" size={17} />
+        <span className="hud-count-pop" key={currency}>{currency}</span>
+      </div>
       {ORDER.map((resource) => {
         const config = RESOURCES[resource];
         const isFeedable = FEEDABLE.includes(resource);
@@ -47,7 +71,7 @@ export default function InventoryHud() {
         const chipStyle = {
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 6,
           padding: '6px 14px',
           background: isHeld ? 'rgba(255, 93, 126, 0.35)' : 'rgba(0, 0, 0, 0.55)',
           borderRadius: 999,
@@ -62,7 +86,7 @@ export default function InventoryHud() {
         };
         const content = (
           <>
-            <span style={{ fontSize: 17 }}>{config.emoji}</span>
+            <SvgIcon name={ICON_MAP[resource] || resource} size={17} />
             {/* key={count} re-triggers the pop animation on change */}
             <span key={inventory[resource]} className="hud-count-pop">
               {inventory[resource]}
@@ -78,7 +102,7 @@ export default function InventoryHud() {
             disabled={empty}
             title={
               isHeld
-                ? `Click the pet to feed it! ${config.emoji}`
+                ? `Click the pet to feed it! ${config.label}`
                 : `Hold ${config.label.toLowerCase()} to feed the pet`
             }
             style={{
@@ -152,11 +176,11 @@ export default function InventoryHud() {
                         : 'rgba(0, 0, 0, 0.55)')
                     }
                   >
-                    <span style={{ fontSize: 15 }}>{sp.emoji}</span>
-                    <span>🥚 ×{count}</span>
-                    <span style={{ opacity: 0.7, fontSize: 11, fontWeight: 600 }}>
-                      {isActive ? 'placing…' : 'place'}
-                    </span>
+                     <SvgIcon name="egg" size={15} />
+                     <span>×{count}</span>
+                     <span style={{ opacity: 0.7, fontSize: 11, fontWeight: 600 }}>
+                       {isActive ? 'placing…' : 'place'}
+                     </span>
                   </button>
                 );
               })}
@@ -176,14 +200,13 @@ export default function InventoryHud() {
                 whiteSpace: 'nowrap',
               }}
             >
-              ⏳ {placedEggs.length} incubating — check the island!
+             <SvgIcon name="time" size={14} /> {placedEggs.length} incubating — check the island!
             </div>
           )}
         </div>
       )}
 
-      {/* Feeding hint when holding a treat — centered under the chips */}
-      {holding && FEEDABLE.includes(holding) && (
+         {holding && FEEDABLE.includes(holding) && (
         <div
           style={{
             position: 'absolute',
@@ -200,9 +223,13 @@ export default function InventoryHud() {
             fontWeight: 700,
             backdropFilter: 'blur(8px)',
             whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
           }}
         >
-          {RESOURCES[holding]?.emoji ?? '🍓'} Click the pet to feed it!
+          <SvgIcon name={ICON_MAP[holding] || 'berry'} size={14} />
+          Click the pet to feed it!
         </div>
       )}
     </div>

@@ -16,10 +16,10 @@ import {
   mergeDecorations,
   canPlaceDecoration,
 } from '../data/decorations';
-import { getTile, gridToWorld, isWalkable, BED_SPOT, SPAWN_POINT } from '../data/mapData';
+import { getTile, gridToWorld, isWalkable, BED_SPOT, SPAWN_POINT, GRID_SIZE } from '../data/mapData';
 import { resetExplored } from './exploration';
 import { TILE_THICKNESS } from '../components/Tile';
-import { shopItem, canAfford, deductPrice, KIOSK_TILE } from '../data/shop';
+import { shopItem, canAfford, deductPrice, SELL_PRICES, KIOSK_TILE } from '../data/shop';
 import { PET_SPECIES, EGG_HATCH_MS, pickPetHome } from '../data/species';
 import { questById, freshQuests, questIndexByMetric } from '../data/quests';
 import { cropById, cropStageIndex, DAY_CYCLE_SECONDS as CYCLE_SECONDS } from '../data/crops';
@@ -57,11 +57,24 @@ export const useGameStore = create(
   dayCycleSeconds: DAY_CYCLE_SECONDS, // seconds per day-night cycle
 
   // ── Economy ──
+  currency: 10, // coins for buying/selling in the shop
   inventory: {
-    berry: 0,
+    berry: 3,
     shell: 0,
     stone: 0,
+    wood: 0,
+    flower: 0,
+    fruit: 0,
+    herb: 0,
   },
+
+  // ── Player (avatar controlled by the player with WASD) ──
+  playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 }, // start a few tiles from the pet
+  playerDir: 0, // facing direction (radians): 0 = +Z (north), Math.PI = -Z (south)
+  playerTool: 'hoe', // 'axe' | 'hoe' | null
+  playerMoving: false,
+  // Tools the player owns and their remaining durability
+  tools: { axe: 50, hoe: 50 },
 
   // ── Creature needs (0–100) ──
   needs: {
@@ -191,9 +204,67 @@ export const useGameStore = create(
       return { inventory: { ...s.inventory, [resource]: s.inventory[resource] + amount } };
     }),
 
-  /** Pop a transient HUD toast (harvest feedback, hints). Auto-fades in the UI. */
+   /** Pop a transient HUD toast (harvest feedback, hints). Auto-fades in the UI. */
   showToast: (text) =>
     set((s) => ({ toast: { id: (s.toast?.id ?? 0) + 1, text } })),
+
+  // ── Player movement ──
+  /** Move the player to a new grid cell (called by keyboard/controller). */
+  movePlayer: (row, col) =>
+    set((s) => {
+      // Bounds check
+      if (row < 0 || row >= GRID_SIZE || col < 0 || col >= GRID_SIZE) return s;
+      // Must be walkable land (not water)
+      const tile = getTile(row, col);
+      if (!tile || !isWalkable(tile)) return s;
+      // Can't move onto a decoration (except certain ones, not handled yet)
+      if (s.decorations.some((d) => d.row === row && d.col === col)) return s;
+      if (s.placedEggs.some((e) => e.row === row && e.col === col)) return s;
+      return { playerPos: { row, col } };
+    }),
+
+  /** Set the player's facing direction (for animation). */
+  setPlayerDir: (dir) => set({ playerDir: dir }),
+
+  /** Set the player's currently equipped tool. */
+  setPlayerTool: (tool) => set({ playerTool: tool }),
+
+  /** Gather a tree on the player's current tile (axe only) — adds wood. */
+  chopTree: (row, col) =>
+    set((s) => {
+      if (s.playerTool !== 'axe') return s;
+      const hasTree = s.decorations.some((d) => d.row === row && d.col === col && d.kind === 'palm');
+      if (!hasTree) return s;
+      const treeIdx = s.decorations.findIndex((d) => d.row === row && d.col === col && d.kind === 'palm');
+      if (treeIdx < 0) return s;
+      return {
+        decorations: s.decorations.filter((_, i) => i !== treeIdx),
+        inventory: { ...s.inventory, wood: (s.inventory.wood ?? 0) + 1 },
+      };
+    }),
+
+   /** Sell a resource for coins. */
+  sellResource: (resource, amount = 1) =>
+    set((s) => {
+      const have = s.inventory[resource] ?? 0;
+      if (have < amount) return s;
+      // Uses fixed SELL_PRICES from shop.js — import at top
+      return {
+        inventory: { ...s.inventory, [resource]: have - amount },
+        currency: s.currency + (SELL_PRICES[resource] ?? 1) * amount,
+      };
+    }),
+
+  /** Add coins to the player's currency. */
+  addCurrency: (amount) =>
+    set((s) => ({ currency: s.currency + amount })),
+
+  /** Buy an item from the shop for coins. */
+  buyWithCoins: (itemId, price) =>
+    set((s) => {
+      if (s.currency < price) return s;
+      return { currency: s.currency - price };
+    }),
 
   /**
    * Drain the creature's needs by `gameDt` game-seconds (called by the
@@ -464,32 +535,48 @@ export const useGameStore = create(
       // Defense-in-depth: rare seeds can't be hoarded before their exotic
       // unlock is bought (the UI hides them, but the store should refuse too).
       if (item.kind === 'seed' && item.crop === 'nightFlower' && !s.unlockedCrops.includes(item.crop)) return s;
-      if (!canAfford(item.price, s.inventory)) return s;
+      if (!canAfford(item.price, s.inventory, s.currency)) return s;
 
-      const inventory = deductPrice(item.price, s.inventory);
+      const { inventory: newInv, currency: newCurrency } = deductPrice(item.price, s.inventory, s.currency);
+
       if (item.kind === 'decoration') {
         return {
-          inventory,
+          inventory: newInv,
+          currency: newCurrency,
           unlockedDecorations: [...s.unlockedDecorations, itemId],
           quests: advanceQuests(s.quests, 'buy:decoration', 1),
         };
       }
       if (item.kind === 'egg') {
-        // Eggs are repeatable — every purchase adds another unhatched egg.
-        return { inventory, ownedEggs: [...s.ownedEggs, { id: uid(), species: item.species }] };
+        return {
+          inventory: newInv,
+          currency: newCurrency,
+          ownedEggs: [...s.ownedEggs, { id: uid(), species: item.species }],
+        };
       }
       if (item.kind === 'exotic') {
-        // One-time unlock — reveals the rare crop in the plant palette.
-        return { inventory, unlockedCrops: [...s.unlockedCrops, item.crop] };
+        return {
+          inventory: newInv,
+          currency: newCurrency,
+          unlockedCrops: [...s.unlockedCrops, item.crop],
+        };
       }
       if (item.kind === 'seed') {
-        // Seed packs are repeatable — each adds to the matching pile.
         return {
-          inventory,
+          inventory: newInv,
+          currency: newCurrency,
           seeds: { ...s.seeds, [item.crop]: (s.seeds[item.crop] ?? 0) + item.count },
         };
       }
-      return { inventory, upgrades: { ...s.upgrades, [itemId]: true } };
+      if (item.kind === 'tool') {
+        const toolKey = item.tool;
+        return {
+          inventory: newInv,
+          currency: newCurrency,
+          tools: { ...s.tools, [toolKey]: (s.tools[toolKey] ?? 0) + 1 },
+        };
+      }
+      return { inventory: newInv, currency: newCurrency, upgrades: { ...s.upgrades, [itemId]: true } };
     }),
 
   /**
@@ -719,14 +806,19 @@ export const useGameStore = create(
    * its fresh-game default. The clock, pause state, and build mode also
    * reset so testing starts from a clean island.
    */
-  resetGame: () => {
+   resetGame: () => {
     useGameStore.persist.clearStorage();
     resetExplored(); // wipe the fog-of-war discovery map too
     set({
       time: START_TIME, // back to a fresh late-morning start
       timeScale: 1,
       paused: false,
-      inventory: { berry: 0, shell: 0, stone: 0 },
+      currency: 10,
+      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0 },
+      playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 },
+      playerDir: 0,
+      playerTool: 'hoe',
+      tools: { axe: 50, hoe: 50 },
       needs: { hunger: 100, energy: 100, happiness: 100 },
       decorations: generateInitialDecorations(),
       plantedDecorations: [],
@@ -762,20 +854,25 @@ export const useGameStore = create(
   },
     }),
     {
-      name: 'katherine-island-save', // localStorage key
-      version: SAVE_VERSION,
-      // The island became a 160x160 procedural archipelago — every old
-      // save's decorations/positions reference a vanished hand-authored
-      // grid, so discard pre-v3 saves and hand everyone the fresh island.
-      migrate: () => ({}),
-      // Progress worth surviving a reload is persisted. Pause, build mode,
-      // the held treat, the deterministic decoration SCATTER, and toasts
-      // are transient and boot fresh. `time` IS persisted now: crops grow
-      // on the game clock, so the clock (and its plantedAt anchors) must
-      // survive reloads for growth to mean anything.
-      partialize: (s) => ({
+    name: 'katherine-island-save', // localStorage key
+    version: SAVE_VERSION,
+    // The island became a 200x200 procedural archipelago — every old
+    // save's decorations/positions reference a vanished hand-authored
+    // grid, so discard pre-v3 saves and hand everyone the fresh island.
+    migrate: () => ({}),
+    // Progress worth surviving a reload is persisted. Pause, build mode,
+    // the held treat, the deterministic decoration SCATTER, and toasts
+    // are transient and boot fresh. `time` IS persisted now: crops grow
+    // on the game clock, so the clock (and its plantedAt anchors) must
+    // survive reloads for growth to mean anything.
+    partialize: (s) => ({
         time: s.time,
+        currency: s.currency,
         inventory: s.inventory,
+        tools: s.tools,
+        playerPos: s.playerPos,
+        playerDir: s.playerDir,
+        playerTool: s.playerTool,
         needs: s.needs,
         stage: s.stage,
         carePoints: s.carePoints,

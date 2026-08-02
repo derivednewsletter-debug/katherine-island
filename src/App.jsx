@@ -10,6 +10,7 @@ import FarmHud from './game/ui/FarmHud';
 import Minimap from './game/ui/Minimap';
 import NamingModal from './game/ui/NamingModal';
 import ToastHud from './game/ui/ToastHud';
+import PlayerToolHud from './game/ui/PlayerToolHud';
 import { startGameClock } from './game/state/gameClock';
 import { startNeedsSystem } from './game/state/needs';
 import { startWeatherSystem } from './game/state/weather';
@@ -18,6 +19,7 @@ import { startMusic, stopMusic, isMusicPlaying, setSoundEnabled } from './game/a
 import { setRainAudio } from './game/audio/rain';
 import { useGameStore } from './game/state/gameStore';
 import { startSaveSync, syncSaveFromCloud } from './game/state/saveSync';
+import SvgIcon from './game/ui/SvgIcon';
 
 /**
  * Root App component.
@@ -100,6 +102,9 @@ export default function App() {
       {/* Farm HUD (top-left, under Quests) — manage every planted crop */}
       <FarmHud />
 
+      {/* Player tool bar (bottom-left, above time) */}
+      <PlayerToolHud />
+
       {/* Minimap (bottom-left, above the time controls) */}
       <Minimap />
 
@@ -123,11 +128,17 @@ export default function App() {
         pointerEvents: 'none',
         backdropFilter: 'blur(8px)',
       }}>
-        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
-          🌴 Katherine's Island
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
+          <SvgIcon name="egg" size={20} />
+          Katherine's Island
         </div>
-        <div style={{ opacity: 0.75, fontSize: 12 }}>
-          Click land to gather &nbsp;|&nbsp; Click the pet to pet it (hold 🍓 to feed) &nbsp;|&nbsp; Pick a decoration below to build &nbsp;|&nbsp; Pan: right-click &nbsp;|&nbsp; Zoom: scroll
+        <div style={{ opacity: 0.75, fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          <span>Click land to gather &nbsp;|&nbsp;</span>
+          <span>Click the pet to pet it (hold to feed) &nbsp;|&nbsp;</span>
+          <span>Use WASD/Arrows to move your avatar &nbsp;|&nbsp;</span>
+          <span>Press E to chop adjacent trees (axe) &nbsp;|&nbsp;</span>
+          <span>Pick a decoration below to build &nbsp;|&nbsp;</span>
+          <span>Pan: right-click &nbsp;|&nbsp; Zoom: scroll</span>
         </div>
       </div>
 
@@ -148,11 +159,15 @@ export default function App() {
           cursor: 'pointer',
           backdropFilter: 'blur(8px)',
           transition: 'background 0.2s',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
         }}
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        {soundOn ? '🔇 Mute sound' : '🔊 Sound on'}
+        {soundOn ? <SvgIcon name="close" size={14} /> : <SvgIcon name="heart" size={14} />}
+        {soundOn ? 'Mute sound' : 'Sound on'}
       </button>
     </div>
   );

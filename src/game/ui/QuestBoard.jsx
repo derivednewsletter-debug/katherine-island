@@ -3,6 +3,17 @@ import { useGameStore } from '../state/gameStore';
 import { questById } from '../data/quests';
 import { RESOURCES } from '../data/resources';
 import { playQuestClaim } from '../audio/sfx';
+import SvgIcon from './SvgIcon';
+
+// Map quest icons from data file to icon registry
+const QUEST_ICON_MAP = {
+  berry: 'berry',
+  heart: 'heart',
+  shop: 'shop',
+  bed: 'sleep',
+  egg: 'egg',
+  farm: 'farm',
+};
 
 /**
  * Quest board HUD — a floating "📋 Quests" button (top-left, under the
@@ -71,7 +82,7 @@ export default function QuestBoard() {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.75)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0, 0, 0, 0.55)')}
       >
-        📋 Quests
+       <SvgIcon name="question" size={16} /> Quests
         {claimable > 0 && (
           <span
             style={{
@@ -114,7 +125,10 @@ export default function QuestBoard() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <span style={{ fontWeight: 800, fontSize: 15 }}>📋 Island Tasks</span>
+            <span style={{ fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <SvgIcon name="question" size={16} />
+              Island Tasks
+            </span>
             <button
               onClick={toggleQuestBoard}
               style={{
@@ -127,7 +141,7 @@ export default function QuestBoard() {
                 padding: '2px 9px',
               }}
             >
-              ✕
+              <SvgIcon name="close" size={14} />
             </button>
           </div>
           <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
@@ -152,15 +166,15 @@ export default function QuestBoard() {
                   border: `1px solid ${q.claimed ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.08)'}`,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                  <span style={{ fontSize: 20 }}>{def.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                   <SvgIcon name={QUEST_ICON_MAP[def.id?.split(':')[0]] || 'question'} size={20} />
+                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{def.title}</div>
                     <div style={{ fontSize: 11, opacity: 0.75 }}>{def.desc}</div>
                   </div>
                   {q.claimed ? (
                     <span style={{ fontSize: 11, fontWeight: 800, color: '#7ee8a0', whiteSpace: 'nowrap' }}>
-                      ✓ Done
+                      Done
                     </span>
                   ) : (
                     <button
@@ -229,7 +243,10 @@ export default function QuestBoard() {
                         color: '#ffd166',
                       }}
                     >
-                      {RESOURCES[resource]?.emoji ?? resource} +{amount}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <SvgIcon name={res === 'coin' ? 'coin' : res} size={12} />
+                    <span>+{amount}</span>
+                  </span>
                     </span>
                   ))}
                 </div>

@@ -5,13 +5,37 @@
  */
 
 export const RESOURCES = {
-  berry: { label: 'Berries', emoji: '🍓', color: '#ff5d7e' },
-  shell: { label: 'Shells', emoji: '🐚', color: '#ffd9b0' },
-  stone: { label: 'Stones', emoji: '🪨', color: '#aab4bf' },
+  berry: { label: 'Berries', color: '#ff5d7e' },
+  shell: { label: 'Shells', color: '#ffd9b0' },
+  stone: { label: 'Stones', color: '#aab4bf' },
   // Crop harvests — the biome payoffs (also feedable treats)
-  flower: { label: 'Flowers', emoji: '🌸', color: '#ff9eb0' },
-  fruit: { label: 'Fruit', emoji: '🍇', color: '#b06ad4' },
-  herb: { label: 'Herbs', emoji: '🌿', color: '#8fd694' },
+  flower: { label: 'Flowers', color: '#ff9eb0' },
+  fruit: { label: 'Fruit', color: '#b06ad4' },
+  herb: { label: 'Herbs', color: '#8fd694' },
+  // Wood is gathered from trees with an axe — sellable for coins
+  wood: { label: 'Wood', color: '#8d6b4b' },
+  // Coins — the shop currency (sell resources, buy seeds/tools)
+  coin: { label: 'Coins', color: '#ffd700' },
+};
+
+/** Tool types the player can equip and use. */
+export const TOOLS = {
+  axe: { label: 'Axe', durability: 50, description: 'Chop down trees for wood' },
+  hoe: { label: 'Hoe', durability: 50, description: 'Till soil for planting' },
+  wateringCan: { label: 'Watering Can', durability: 30, description: 'Water crops to speed growth' },
+};
+
+/** Which terrain types can be gathered with a specific tool. */
+export const TOOL_GATHER = {
+  axe: ['grass', 'jungle'], // trees are scattered props on grass/jungle
+};
+
+/** Starting inventory when the player begins a new game. */
+export const STARTING_INVENTORY = {
+  berry: 3,
+  coin: 10,
+  hoe: 1,
+  axe: 1,
 };
 
 /**

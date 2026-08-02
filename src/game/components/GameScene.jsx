@@ -4,6 +4,7 @@ import { MapControls, OrthographicCamera } from '@react-three/drei';
 import MapGrid from './MapGrid';
 import CameraTracker from './CameraTracker';
 import Creature from './Creature';
+import Player from './Player';
 import Bed from './Bed';
 import Decorations from './Decorations';
 import PlacementSystem from './PlacementSystem';
@@ -71,6 +72,7 @@ function SceneContent() {
       <Suspense fallback={null}>
         <MapGrid />
         <Creature />
+        <Player />
         <Pets />
         <Bed />
         <Decorations />

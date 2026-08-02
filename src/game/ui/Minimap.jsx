@@ -12,6 +12,7 @@ import { useGameStore } from '../state/gameStore';
 import { getCameraState, panTo } from '../state/cameraBus';
 import { PET_SPECIES, PET_HOME_ROAM_RADIUS } from '../data/species';
 import { exploredVersion, isExplored, exploredPercent, isFullyExplored } from '../state/exploration';
+import SvgIcon from './SvgIcon';
 
 // One canvas pixel per tile — a crisp pixelated overview of the whole island.
 const SIZE = GRID_SIZE;
@@ -22,9 +23,9 @@ const worldToMini = (v) => ((v + OFF) / (GRID_SIZE - 1)) * 100;
 
 /** Places worth flying to — the three anchors every new islander needs. */
 const WAYPOINTS = [
-  { id: 'spawn', emoji: '🐾', label: 'Home', tile: SPAWN_POINT, color: '#7ee8fa' },
-  { id: 'shop', emoji: '🛒', label: 'Shop', tile: KIOSK_TILE, color: '#ffd166' },
-  { id: 'bed', emoji: '🛏️', label: 'Bed', tile: BED_SPOT, color: '#f2b8d0' },
+  { id: 'spawn', icon: 'egg', label: 'Home', tile: SPAWN_POINT, color: '#7ee8fa' },
+  { id: 'shop', icon: 'shop', label: 'Shop', tile: KIOSK_TILE, color: '#ffd166' },
+  { id: 'bed', icon: 'bed', label: 'Bed', tile: BED_SPOT, color: '#f2b8d0' },
 ];
 
 function hexToRgb(hex) {
@@ -41,10 +42,10 @@ const TILE_RGB = mapData.map((row) => row.map((t) => hexToRgb(t.color)));
  *  - Terrain painted once onto a small canvas (one pixel per tile).
  *  - FOG OF WAR: a second canvas sits on top and darkens tiles the camera
  *    hasn't visited yet — it repaints only when the exploration version
- *    bumps, and the header shows the explored % (✨ when fully explored).
+ *    bumps, and the header shows the explored % (fully explored!).
  *  - A live white rectangle shows exactly what the camera is looking at
  *    (published every frame by CameraTracker via the camera bus).
- *  - Clickable waypoints (🐾 home, 🛒 shop, 🛏️ bed) fly the camera there.
+ *  - Clickable waypoints (Home, Shop, Bed) fly the camera there.
  *  - Clicking anywhere else on the map flies there too.
  *  - A pulsing dot marks your pet; hatched pets are SPECIES-colored dots
  *    ringed by their HOME territory — click a dot or ring to fly there.
@@ -135,7 +136,7 @@ export default function Minimap() {
       const pct = isFullyExplored() ? 100 : exploredPercent();
       if (pctRef.current && pct !== lastPct) {
         lastPct = pct;
-        pctRef.current.textContent = pct >= 100 ? '✨ fully explored!' : `${pct}% explored`;
+          pctRef.current.textContent = pct >= 100 ? 'Fully explored!' : `${pct}% explored`;
         pctRef.current.classList.toggle('done', pct >= 100);
       }
 
@@ -253,12 +254,12 @@ export default function Minimap() {
               className="minimap-waypoint"
               title={`Fly to ${w.label}`}
               style={{ left: `${worldToMini(x)}%`, top: `${worldToMini(z)}%`, borderColor: w.color }}
-              onClick={(e) => {
+               onClick={(e) => {
                 e.stopPropagation();
                 flyToTile(w.tile.row, w.tile.col, 22);
               }}
             >
-              {w.emoji}
+              <SvgIcon name={w.icon} size={12} />
             </button>
           );
         })}
