@@ -899,10 +899,17 @@ export const useGameStore = create(
         if (!state) return;
         const planted = state.plantedDecorations ?? [];
         const removed = state.removedScatterCells ?? [];
+        // Backfill new player economy / position fields for older saves
+        const currency = state.currency ?? 10;
+        const tools = state.tools ?? { axe: 50, hoe: 50 };
+        const playerPos = state.playerPos ?? { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 };
+        const playerDir = state.playerDir ?? 0;
+        const playerTool = state.playerTool ?? 'hoe';
         let backfilled = false;
+        let petBackfilled = false;
         const pets = (state.pets ?? []).map((p) => {
           if (p.home && p.home.row !== undefined) return p;
-          backfilled = true;
+          petBackfilled = true;
           return { ...p, home: pickPetHome(p.species) };
         });
         // Saves from before the weather feature lack the slice — backfill a
@@ -919,7 +926,9 @@ export const useGameStore = create(
           weather,
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
-          ...(backfilled ? { pets } : {}),
+          ...(petBackfilled ? { pets } : {}),
+          // Backfill player state for saves from before the player avatar feature
+          ...(state.currency === undefined ? { currency, tools, playerPos, playerDir, playerTool } : {}),
         });
       },
     }
