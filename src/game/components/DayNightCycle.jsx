@@ -39,8 +39,9 @@ const KF = KEYFRAMES.map((k) => ({
 const RAIN_BG = new THREE.Color('#3a4a66');
 
 // Rain dims the lights (ambient/sun/fill all scale down) so the shower
-// visibly overcasts the island.
-const RAIN_DIM = 0.62;
+// visibly overcasts the island — but keep it gentle so the world stays
+// readable under the rain streaks.
+const RAIN_DIM = 0.78;
 
 /** Smoothly approach `target` from `current` (avoids a hard cut on rain). */
 function approach(current, target, dt) {
@@ -82,8 +83,9 @@ export default function DayNightCycle() {
 
     if (bgRef.current) {
       bgRef.current.copy(a.bgColor).lerp(b.bgColor, local);
-      // Rain deepens the sky toward a storm grey
-      bgRef.current.lerp(RAIN_BG, r * 0.7);
+      // Rain deepens the sky toward a storm grey (kept partial so the
+      // scene never whites out under the streaks)
+      bgRef.current.lerp(RAIN_BG, r * 0.45);
     }
     if (ambientRef.current) {
       ambientRef.current.color.copy(a.ambientColor).lerp(b.ambientColor, local);

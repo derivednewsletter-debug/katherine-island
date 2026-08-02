@@ -13,7 +13,7 @@ import { useGameStore } from '../state/gameStore';
  * whether it rains, but the streaks themselves always animate smoothly
  * even if the player pauses the clock mid-shower.
  */
-const STREAK_COUNT = 1400;
+const STREAK_COUNT = 900;
 // World bounds: the 160-tile island spans ±79.5 in x/z; pad generously so
 // rain is visible at any camera zoom. Terrain peaks sit ~2 units high, so
 // streaks fall from well above the tallest peak down to the ground plane.
@@ -55,7 +55,7 @@ export default function Rain() {
     const raining = useGameStore.getState().weather?.raining ?? false;
 
     // Fade toward the target opacity (~1s in/out)
-    const target = raining ? 0.55 : 0;
+    const target = raining ? 0.3 : 0;
     opacity.current += (target - opacity.current) * Math.min(1, dt * 3);
     if (matRef.current) matRef.current.opacity = opacity.current;
     if (lineRef.current) lineRef.current.visible = opacity.current > 0.02;

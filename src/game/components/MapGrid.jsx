@@ -119,7 +119,7 @@ const WaterField = React.memo(function WaterField({ type }) {
   const ref = useRef();
   const uniforms = useRef({
     uTime: { value: 0 },
-    uColor: { value: new THREE.Color(type === 'water' ? '#2d5ba6' : '#3f84d0') },
+    uColor: { value: new THREE.Color(type === 'water' ? '#2a5fbf' : '#5cb0ea') },
     uOpacity: { value: type === 'water' ? 0.55 : 0.7 },
   });
 

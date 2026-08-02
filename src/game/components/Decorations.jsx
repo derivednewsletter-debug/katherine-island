@@ -15,8 +15,8 @@ export function PalmTree({ scale = 1, rot = 0, tint }) {
   return (
     <group scale={scale} rotation={[0, rot, 0]}>
       {/* Trunk (slight lean) */}
-      <mesh position={[0, 0.28, 0]} rotation={[0, 0, -0.12]} castShadow>
-        <cylinderGeometry args={[0.045, 0.07, 0.6, 6]} />
+      <mesh position={[0, 0.35, 0]} rotation={[0, 0, -0.12]} castShadow>
+        <cylinderGeometry args={[0.05, 0.08, 0.75, 6]} />
         <meshToonMaterial {...mat(tint, '#b0885a')} />
       </mesh>
       {/* Fronds fanning out from the top */}
@@ -25,19 +25,51 @@ export function PalmTree({ scale = 1, rot = 0, tint }) {
         return (
           <mesh
             key={i}
-            position={[Math.cos(angle) * 0.06, 0.6, Math.sin(angle) * 0.06]}
+            position={[Math.cos(angle) * 0.07, 0.72, Math.sin(angle) * 0.07]}
             rotation={[Math.sin(angle) * -0.7, 0, Math.cos(angle) * -0.7]}
             castShadow
           >
-            <coneGeometry args={[0.045, 0.26, 5]} />
+            <coneGeometry args={[0.05, 0.3, 5]} />
             <meshToonMaterial {...mat(tint, i % 2 === 0 ? '#3f9e4d' : '#57b95f')} />
           </mesh>
         );
       })}
       {/* Coconut */}
-      <mesh position={[0, 0.56, 0]} castShadow>
-        <sphereGeometry args={[0.055, 8, 8]} />
+      <mesh position={[0, 0.68, 0]} castShadow>
+        <sphereGeometry args={[0.06, 8, 8]} />
         <meshToonMaterial {...mat(tint, '#8a5a2b')} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Big jungle canopy tree — the substantial "real tree" the island lacks.
+ *  Thick trunk topped with a layered low-poly canopy. Scatter-only
+ *  (not in the build palette) and choppable like a palm. */
+export function BigTree({ scale = 1, rot = 0, tint }) {
+  return (
+    <group scale={scale} rotation={[0, rot, 0]}>
+      {/* Trunk */}
+      <mesh position={[0, 0.65, 0]} castShadow>
+        <cylinderGeometry args={[0.14, 0.22, 1.3, 7]} />
+        <meshToonMaterial {...mat(tint, '#7a5a34')} />
+      </mesh>
+      {/* Layered canopy blobs */}
+      <mesh position={[0, 1.75, 0]} castShadow>
+        <icosahedronGeometry args={[0.55, 0]} />
+        <meshToonMaterial {...mat(tint, '#2f7d3f')} flatShading />
+      </mesh>
+      <mesh position={[0.45, 1.55, 0.25]} castShadow>
+        <icosahedronGeometry args={[0.42, 0]} />
+        <meshToonMaterial {...mat(tint, '#3a8c4a')} flatShading />
+      </mesh>
+      <mesh position={[-0.42, 1.62, -0.2]} castShadow>
+        <icosahedronGeometry args={[0.42, 0]} />
+        <meshToonMaterial {...mat(tint, '#3a8c4a')} flatShading />
+      </mesh>
+      <mesh position={[0, 2.05, 0.05]} castShadow>
+        <icosahedronGeometry args={[0.34, 0]} />
+        <meshToonMaterial {...mat(tint, '#4c9c58')} flatShading />
       </mesh>
     </group>
   );
@@ -178,6 +210,7 @@ export function Lantern({ scale = 1, rot = 0, tint }) {
 
 export const KIND_COMPONENT = {
   palm: PalmTree,
+  tree: BigTree,
   rock: Rock,
   flower: Flower,
   bush: Bush,
@@ -193,18 +226,25 @@ export const KIND_COMPONENT = {
  */
 const PARTS = {
   palm: [
-    { geom: 'cylinder', args: [0.045, 0.07, 0.6, 6], pos: [0, 0.28, 0], rot: [0, 0, -0.12], color: '#b0885a' },
+    { geom: 'cylinder', args: [0.05, 0.08, 0.75, 6], pos: [0, 0.35, 0], rot: [0, 0, -0.12], color: '#b0885a' },
     ...[0, 1, 2, 3, 4, 5].map((i) => {
       const angle = (i / 6) * Math.PI * 2;
       return {
         geom: 'cone',
-        args: [0.045, 0.26, 5],
-        pos: [Math.cos(angle) * 0.06, 0.6, Math.sin(angle) * 0.06],
+        args: [0.05, 0.3, 5],
+        pos: [Math.cos(angle) * 0.07, 0.72, Math.sin(angle) * 0.07],
         rot: [Math.sin(angle) * -0.7, 0, Math.cos(angle) * -0.7],
         color: i % 2 === 0 ? '#3f9e4d' : '#57b95f',
       };
     }),
-    { geom: 'sphere', args: [0.055, 8, 8], pos: [0, 0.56, 0], rot: [0, 0, 0], color: '#8a5a2b' },
+    { geom: 'sphere', args: [0.06, 8, 8], pos: [0, 0.68, 0], rot: [0, 0, 0], color: '#8a5a2b' },
+  ],
+  tree: [
+    { geom: 'cylinder', args: [0.14, 0.22, 1.3, 7], pos: [0, 0.65, 0], rot: [0, 0, 0], color: '#7a5a34' },
+    { geom: 'icosa', args: [0.55, 0], pos: [0, 1.75, 0], rot: [0, 0, 0], color: '#2f7d3f' },
+    { geom: 'icosa', args: [0.42, 0], pos: [0.45, 1.55, 0.25], rot: [0, 0, 0], color: '#3a8c4a' },
+    { geom: 'icosa', args: [0.42, 0], pos: [-0.42, 1.62, -0.2], rot: [0, 0, 0], color: '#3a8c4a' },
+    { geom: 'icosa', args: [0.34, 0], pos: [0, 2.05, 0.05], rot: [0, 0, 0], color: '#4c9c58' },
   ],
   rock: [
     { geom: 'icosa', args: [0.16, 0], pos: [0, 0.09, 0], rot: [0, 0, 0], color: '#9aa3ab' },
@@ -252,7 +292,7 @@ export default function Decorations() {
   const decorations = useGameStore((s) => s.decorations);
 
   const grouped = useMemo(() => {
-    const g = { palm: [], rock: [], flower: [], fountain: [], lantern: [], bush: [] };
+    const g = { palm: [], tree: [], rock: [], flower: [], fountain: [], lantern: [], bush: [] };
     for (const d of decorations) {
       if (g[d.kind]) g[d.kind].push(d);
     }

@@ -185,10 +185,10 @@ canvas {
   }
 }
 
-/* ── Minimap (bottom-left, above the time controls) ── */
+/* ── Minimap (bottom-left, above the player tool bar) ── */
 .minimap {
   position: absolute;
-  bottom: 78px;
+  bottom: 200px;
   left: 16px;
   width: 158px;
   padding: 8px;

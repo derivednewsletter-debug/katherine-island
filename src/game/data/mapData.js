@@ -24,13 +24,13 @@
  */
 
 export const TERRAIN_TYPES = {
-  water:   { color: '#2d5ba6', height: 0.0,  label: 'Deep Water' },
-  shallow: { color: '#4a90d9', height: 0.05, label: 'Shallow Water' },
-  sand:    { color: '#e8d5a3', height: 0.2,  label: 'Sand' },
-  grass:   { color: '#7bc67e', height: 0.5,  label: 'Grass' },
-  jungle:  { color: '#2f8f4e', height: 0.55, label: 'Jungle' },
-  hill:    { color: '#5da851', height: 0.85, label: 'Hill' },
-  peak:    { color: '#7f9b8a', height: 1.4,  label: 'Peak' },
+  water:   { color: '#2a5fbf', height: 0.0,  label: 'Deep Water' },
+  shallow: { color: '#5cb0ea', height: 0.05, label: 'Shallow Water' },
+  sand:    { color: '#f0e1ab', height: 0.2,  label: 'Sand' },
+  grass:   { color: '#7fd35f', height: 0.5,  label: 'Grass' },
+  jungle:  { color: '#1d7a3d', height: 0.55, label: 'Jungle' },
+  hill:    { color: '#a9c554', height: 0.85, label: 'Hill' },
+  peak:    { color: '#9aa6b3', height: 1.4,  label: 'Peak' },
 };
 
 export const GRID_SIZE = 200; // Expanded map for massive exploration (40,000 tiles vs 25,600)

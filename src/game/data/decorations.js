@@ -25,8 +25,9 @@ export const DECORATION_TYPES = {
   fountain: { label: 'Fountain', color: '#5fc3e8' },
   lantern: { label: 'Lantern', color: '#ffcf6e' },
   erase: { label: 'Eraser', color: '#f87171' },
-  // Scatter-only (not in build palette): jungle undergrowth
+  // Scatter-only (not in build palette): jungle undergrowth + big canopy trees
   bush: { label: 'Bush', color: '#3a8c5a' },
+  tree: { label: 'Big Tree', color: '#2f7d3f' },
 };
 
 /** Decoration kinds available in the palette for free (not shop unlocks). */
@@ -70,17 +71,25 @@ export function generateInitialDecorations() {
       const r = rng();
       let kind = null;
 
-      if (tile.type === 'grass' || tile.type === 'jungle') {
-        if (r < 0.05) kind = 'palm';
-        else if (r < 0.09) kind = 'rock';
-        else if (r < 0.15) kind = 'flower';
-        else if (r < 0.22 && tile.type === 'jungle') kind = 'bush'; // jungle undergrowth
+      if (tile.type === 'grass') {
+        if (r < 0.1) kind = 'tree';
+        else if (r < 0.15) kind = 'palm';
+        else if (r < 0.19) kind = 'rock';
+        else if (r < 0.24) kind = 'flower';
+      } else if (tile.type === 'jungle') {
+        // Dense rainforest — the "lush jungle" biome is the big-tree biome
+        if (r < 0.3) kind = 'tree';
+        else if (r < 0.36) kind = 'bush'; // jungle undergrowth
+        else if (r < 0.41) kind = 'palm';
+        else if (r < 0.44) kind = 'rock';
+        else if (r < 0.5) kind = 'flower';
       } else if (tile.type === 'sand') {
-        if (r < 0.1) kind = 'palm';
-        else if (r < 0.16) kind = 'rock';
-      } else if (tile.type === 'hill') {
         if (r < 0.14) kind = 'palm';
-        else if (r < 0.22) kind = 'rock';
+        else if (r < 0.2) kind = 'rock';
+      } else if (tile.type === 'hill') {
+        if (r < 0.16) kind = 'tree';
+        else if (r < 0.24) kind = 'palm';
+        else if (r < 0.32) kind = 'rock';
       } else if (tile.type === 'peak') {
         if (r < 0.28) kind = 'rock';
       }
@@ -90,6 +99,8 @@ export function generateInitialDecorations() {
       const { x, z } = gridToWorld(row, col);
       // Small random offset so props don't look machine-aligned
       const jitter = 0.18;
+      // Big trees lean on the larger end so they actually tower over the map
+      const scale = kind === 'tree' ? 0.9 + rng() * 0.7 : 0.75 + rng() * 0.55;
       list.push({
         id: `${row},${col}`,
         kind,
@@ -99,7 +110,7 @@ export function generateInitialDecorations() {
         z: z + (rng() - 0.5) * jitter,
         y: tile.height + TILE_THICKNESS, // top surface of the tile
         rot: rng() * Math.PI * 2,
-        scale: 0.75 + rng() * 0.55,
+        scale,
       });
     }
   }

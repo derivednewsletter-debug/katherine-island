@@ -20,7 +20,7 @@ const DIRECTION_VECTORS = {
 };
 
 /**
- * Find an adjacent tree (palm decoration) next to the player.
+ * Find an adjacent tree (palm or big tree decoration) next to the player.
  * Returns { row, col, decoration } or null.
  */
 function findAdjacentTree(playerRow, playerCol, decorations) {
@@ -30,7 +30,9 @@ function findAdjacentTree(playerRow, playerCol, decorations) {
   for (const { dr, dc } of dirs) {
     const tr = playerRow + dr;
     const tc = playerCol + dc;
-    const tree = decorations.find((d) => d.row === tr && d.col === tc && d.kind === 'palm');
+    const tree = decorations.find(
+      (d) => d.row === tr && d.col === tc && (d.kind === 'palm' || d.kind === 'tree')
+    );
     if (tree) return { row: tr, col: tc, tree };
   }
   return null;

@@ -230,13 +230,15 @@ export const useGameStore = create(
   /** Set the player's currently equipped tool. */
   setPlayerTool: (tool) => set({ playerTool: tool }),
 
-  /** Gather a tree on the player's current tile (axe only) — adds wood. */
+  /** Gather a tree on the player's current tile (axe only) — adds wood.
+   *  Both scatter kinds (palm + big tree) are choppable. */
   chopTree: (row, col) =>
     set((s) => {
       if (s.playerTool !== 'axe') return s;
-      const hasTree = s.decorations.some((d) => d.row === row && d.col === col && d.kind === 'palm');
+      const isTree = (d) => d.row === row && d.col === col && (d.kind === 'palm' || d.kind === 'tree');
+      const hasTree = s.decorations.some(isTree);
       if (!hasTree) return s;
-      const treeIdx = s.decorations.findIndex((d) => d.row === row && d.col === col && d.kind === 'palm');
+      const treeIdx = s.decorations.findIndex(isTree);
       if (treeIdx < 0) return s;
       return {
         decorations: s.decorations.filter((_, i) => i !== treeIdx),

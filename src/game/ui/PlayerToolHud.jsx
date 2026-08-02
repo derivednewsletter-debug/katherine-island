@@ -22,7 +22,7 @@ export default function PlayerToolHud() {
     <div
       style={{
         position: 'absolute',
-        bottom: 16,
+        bottom: 74,
         left: 16,
         display: 'flex',
         flexDirection: 'column',
