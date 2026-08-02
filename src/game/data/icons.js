@@ -14,6 +14,10 @@ export const ICONS = {
   herb: '<svg viewBox="0 0 24 24" fill="#8fd694"><path d="M12 4c2 3 3 6 3 9 0 2-1 4-3 5s-3-3-3-5c0-3 1-6 3-9z"/><path d="M9 13c0 1 .5 2 1 3 .5 0 1-1 1-2s-.5-2-1-3h-1zm6-2c0 1-.5 2-1 3-.5 0-1-1-1-2s.5-2 1-3h1z"/></svg>',
   coin: '<svg viewBox="0 0 24 24" fill="#ffd700"><circle cx="12" cy="12" r="8" fill="#ffd700" stroke="#e6c200" strokeWidth="1"/><circle cx="12" cy="12" r="3" fill="#e6c200"/></svg>',
 
+  // Biome/decoration icons
+  palm: '<svg viewBox="0 0 24 24" fill="#4ade80"><path d="M12 4L9 12H6l6 4-2 6 6-4 6-4h-3l-3-8z"/></svg>',
+  bed: '<svg viewBox="0 0 24 24" fill="#f2b8d0"><path d="M4 8h16v2H4zm0 2h16v8H4zm2 0v6h12v-6m-4-6V4h-4v6h4z"/><circle cx="10" cy="5" r="1" fill="#f2b8d0"/></svg>',
+
   // Tools
   axe: '<svg viewBox="0 0 24 24" fill="#6b4423"><path d="M18 2l4 4-8 8-4-4 8-8zm-8 8l-6 6v4l2-2 6-6z"/><rect x="6" y="14" width="4" height="2" fill="#6b4423"/></svg>',
   hoe: '<svg viewBox="0 0 24 24" fill="#8d6b4b"><path d="M15 3a3 3 0 0 1 6 0v6a3 3 0 0 1-3 3h-2v-3h1a1 1 0 0 0 0-2h-1V4h1a1 1 0 0 0 0-2h-1V3zm-7 8v10H6V11a2 2 0 0 0-2-2H2v-2h4a2 2 0 0 0 2 2z"/></svg>',

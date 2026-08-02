@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import { useGameStore } from '../state/gameStore';
 import { getTile, isWalkable, gridToWorld, GRID_SIZE, SPAWN_POINT } from '../data/mapData';
 import { TILE_THICKNESS } from '../components/Tile';
@@ -223,8 +222,6 @@ export default function Player() {
   // Tool color indicator
   const TOOL_COLOR = { axe: '#8d6b4b', hoe: '#6b4423', wateringCan: '#3b82f6' };
   const toolColor = playerTool ? (TOOL_COLOR[playerTool] || '#ffffff') : '#ffffff';
-  const toolDurability = playerTool ? (tools[playerTool] ?? 0) : 0;
-  const toolMaxDurability = playerTool ? { axe: 50, hoe: 50 }[playerTool] : 0;
 
   return (
     <group ref={groupRef} position={[worldPos[0], worldPos[1], worldPos[2]]}>
@@ -263,22 +260,6 @@ export default function Player() {
         <cylinderGeometry args={[0.08, 0.28, 0.25, 8]} />
         <meshLambertMaterial color="#8d6b4b" />
       </mesh>
-
-      {/* Tool durability indicator above player head */}
-      {playerTool && toolDurability > 0 && (
-        <Html position={[0, 1.6, 0]} style={{ pointerEvents: 'none' }} distanceFactor={10}>
-          <div style={{
-            background: 'rgba(0,0,0,0.7)',
-            borderRadius: 4,
-            padding: '2px 6px',
-            fontSize: '10px',
-            color: '#fff',
-            whiteSpace: 'nowrap'
-          }}>
-            {playerTool}: {toolDurability}/{toolMaxDurability}
-          </div>
-        </Html>
-      )}
     </group>
   );
 }
