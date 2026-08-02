@@ -34,16 +34,34 @@ const KF = KEYFRAMES.map((k) => ({
  * Renders the background color, ambient light, shadow-casting sun, and a
  * cool fill light so the whole scene responds to time of day.
  */
+// Storm grey used to deepen the sky while a shower passes (lerped toward
+// during rain so the whole scene reads "rainy" even in full daylight).
+const RAIN_BG = new THREE.Color('#3a4a66');
+
+// Rain dims the lights (ambient/sun/fill all scale down) so the shower
+// visibly overcasts the island.
+const RAIN_DIM = 0.62;
+
+/** Smoothly approach `target` from `current` (avoids a hard cut on rain). */
+function approach(current, target, dt) {
+  return current + (target - current) * Math.min(1, dt * 2.5);
+}
+
 export default function DayNightCycle() {
   const bgRef = useRef(); // THREE.Color (scene background)
   const ambientRef = useRef();
   const sunRef = useRef();
   const fillRef = useRef();
+  // Smooth rain factor 0..1 (1 = fully raining) so the dim fades in/out
+  const rainAmt = useRef(0);
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     // Tick off the shared game clock: pause/fast-forward affect the sky too.
     // `time` already carries the boot offset, so the phase matches the HUD.
-    const { time, dayCycleSeconds } = useGameStore.getState();
+    const { time, dayCycleSeconds, weather } = useGameStore.getState();
+    const raining = !!weather?.raining;
+    rainAmt.current = approach(rainAmt.current, raining ? 1 : 0, dt);
+    const r = rainAmt.current;
     const phase = (time % dayCycleSeconds) / dayCycleSeconds;
 
     // Find the surrounding keyframe pair
@@ -64,14 +82,16 @@ export default function DayNightCycle() {
 
     if (bgRef.current) {
       bgRef.current.copy(a.bgColor).lerp(b.bgColor, local);
+      // Rain deepens the sky toward a storm grey
+      bgRef.current.lerp(RAIN_BG, r * 0.7);
     }
     if (ambientRef.current) {
       ambientRef.current.color.copy(a.ambientColor).lerp(b.ambientColor, local);
-      ambientRef.current.intensity = lerp(a.ambient, b.ambient, local);
+      ambientRef.current.intensity = lerp(a.ambient, b.ambient, local) * (1 - r * (1 - RAIN_DIM));
     }
     if (sunRef.current) {
       sunRef.current.color.copy(a.sunColor).lerp(b.sunColor, local);
-      sunRef.current.intensity = lerp(a.sun, b.sun, local);
+      sunRef.current.intensity = lerp(a.sun, b.sun, local) * (1 - r * (1 - RAIN_DIM));
       sunRef.current.position.set(
         lerp(a.sunPos[0], b.sunPos[0], local),
         lerp(a.sunPos[1], b.sunPos[1], local),
@@ -79,7 +99,7 @@ export default function DayNightCycle() {
       );
     }
     if (fillRef.current) {
-      fillRef.current.intensity = lerp(a.fill, b.fill, local);
+      fillRef.current.intensity = lerp(a.fill, b.fill, local) * (1 - r * (1 - RAIN_DIM));
     }
   });
 

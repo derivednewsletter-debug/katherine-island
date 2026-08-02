@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { useGameStore } from '../state/gameStore';
+import { useGameStore, weatherOpts } from '../state/gameStore';
 import { CROPS, CROP_PARTS, cropStageIndex } from '../data/crops';
 import InstancedField from './InstancedField';
 
@@ -53,8 +53,9 @@ const STAGES = [0, 1, 2, 3];
 export default function Crops() {
   // Stable stage-key string: re-renders only when a crop's stage changes
   // (or crops are planted/harvested), never on every needs/time tick.
+  // Weather-aware: rain grows crops 2x, so stages cross faster mid-shower.
   const stageKey = useGameStore((s) =>
-    s.crops.map((c) => `${cropStageIndex(c, s.time)}`).join(',')
+    s.crops.map((c) => `${cropStageIndex(c, s.time, weatherOpts(s))}`).join(',')
   );
 
   // Group crops by kind × stage → entries for each stage's InstancedField
@@ -67,7 +68,7 @@ export default function Crops() {
     for (const c of s.crops) {
       const def = CROPS[c.cropId];
       if (!def) continue;
-      const stage = cropStageIndex(c, s.time);
+      const stage = cropStageIndex(c, s.time, weatherOpts(s));
       out[c.cropId][stage].push({ x: c.x, y: c.y, z: c.z, rot: c.rot, scale: c.scale });
     }
     return out;
@@ -120,7 +121,7 @@ export default function Crops() {
     }
     if (placement.active) return; // build mode owns the click
     const def = CROPS[crop.cropId];
-    const ready = cropStageIndex(crop, s.time) >= def.durations.length;
+    const ready = cropStageIndex(crop, s.time, weatherOpts(s)) >= def.durations.length;
     if (ready) {
       s.harvestCrop(crop.row, crop.col);
     } else {

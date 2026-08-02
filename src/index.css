@@ -156,6 +156,29 @@ canvas {
   font-weight: 600;
 }
 
+/* Locked exotic crop — clicking it opens the shop instead of planting */
+.palette-btn.locked {
+  opacity: 0.6;
+  border-color: rgba(255, 209, 102, 0.4);
+  background: rgba(255, 209, 102, 0.08);
+  cursor: pointer;
+}
+
+.palette-btn.locked:hover {
+  opacity: 0.9;
+  background: rgba(255, 209, 102, 0.18);
+}
+
+/* Seed count chip on each crop palette button */
+.palette-seed-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  line-height: 15px;
+}
+
 @media (max-width: 640px) {
   .palette-btn-label {
     display: none;

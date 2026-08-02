@@ -1,12 +1,16 @@
 /**
  * Shop catalog.
  *
- * Three kinds of items:
+ * Five kinds of items:
  *  - 'decoration': unlocks a NEW build-palette tool (a one-time purchase
  *    that adds the exotic prop to the placement bar).
  *  - 'upgrade': a permanent passive perk stored in `upgrades`.
  *  - 'egg': a pet egg (repeatable purchase) — place it on the island and
  *    it hatches into a new pet after EGG_HATCH_MS of real time.
+ *  - 'seed': a pack of crop seeds (repeatable) — each purchase adds seeds
+ *    to the matching pile; planting a crop consumes one.
+ *  - 'exotic': a one-time unlock that reveals a RARE crop (the night
+ *    flower) in the plant palette; its seeds are sold afterwards.
  *
  * Prices are keyed by resource id ({ berry, shell, stone }) so items can
  * cost a mix of gathered goods.
@@ -78,6 +82,69 @@ export const SHOP_ITEMS = [
     desc: 'Place it on the island — it hatches into a new pet after 10 real minutes.',
     price: sp.price,
   })),
+
+  // ── Crop seeds (repeatable packs — planting consumes one seed each) ──
+  {
+    id: 'seed:berryBush',
+    kind: 'seed',
+    crop: 'berryBush',
+    name: 'Berry Bush Seeds',
+    emoji: '🌱',
+    desc: 'A 3-pack of berry bush seeds — plant on grass or jungle.',
+    price: { berry: 3 },
+    count: 3,
+  },
+  {
+    id: 'seed:flowerPatch',
+    kind: 'seed',
+    crop: 'flowerPatch',
+    name: 'Flower Patch Seeds',
+    emoji: '🌸',
+    desc: 'A 3-pack of flower seeds — plant on grass or jungle.',
+    price: { berry: 3 },
+    count: 3,
+  },
+  {
+    id: 'seed:fruitTree',
+    kind: 'seed',
+    crop: 'fruitTree',
+    name: 'Jungle Fruit Seeds',
+    emoji: '🍇',
+    desc: 'A 2-pack of jungle fruit seeds — jungle only.',
+    price: { stone: 4, berry: 2 },
+    count: 2,
+  },
+  {
+    id: 'seed:mountainHerb',
+    kind: 'seed',
+    crop: 'mountainHerb',
+    name: 'Mountain Herb Seeds',
+    emoji: '🌿',
+    desc: 'A 3-pack of mountain herb seeds — peaks only.',
+    price: { stone: 4 },
+    count: 3,
+  },
+
+  // ── Exotic section (one-time unlock, then its seeds become buyable) ──
+  {
+    id: 'unlock:nightFlower',
+    kind: 'exotic',
+    crop: 'nightFlower',
+    name: 'Night Flower',
+    emoji: '🌙',
+    desc: 'Unlocks the rare night flower — it only grows on peaks, and only at night. Its seeds unlock in the shop after this.',
+    price: { stone: 15, flower: 8 },
+  },
+  {
+    id: 'seed:nightFlower',
+    kind: 'seed',
+    crop: 'nightFlower',
+    name: 'Night Flower Seeds',
+    emoji: '🌙',
+    desc: 'A 2-pack of night flower seeds — peaks only, grows at night.',
+    price: { flower: 5 },
+    count: 2,
+  },
 ];
 
 /** Find an item by id. */

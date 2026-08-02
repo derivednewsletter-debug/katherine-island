@@ -19,6 +19,8 @@ export default function ShopHud() {
   const upgrades = useGameStore((s) => s.upgrades);
   const unlockedDecorations = useGameStore((s) => s.unlockedDecorations);
   const ownedEggs = useGameStore((s) => s.ownedEggs);
+  const seeds = useGameStore((s) => s.seeds);
+  const unlockedCrops = useGameStore((s) => s.unlockedCrops);
 
   // Esc closes the shop
   useEffect(() => {
@@ -30,8 +32,32 @@ export default function ShopHud() {
     return () => window.removeEventListener('keydown', onKey);
   }, [shopOpen, toggleShop]);
 
-  const isOwned = (item) =>
-    item.kind === 'upgrade' ? !!upgrades[item.id] : unlockedDecorations.includes(item.id);
+  const isOwned = (item) => {
+    if (item.kind === 'upgrade') return !!upgrades[item.id];
+    if (item.kind === 'decoration') return unlockedDecorations.includes(item.id);
+    if (item.kind === 'exotic') return unlockedCrops.includes(item.crop);
+    return false; // seeds & eggs are repeatable
+  };
+
+  // Group the catalog into sections so Seeds and the Exotic section read
+  // as their own shelves. The night-flower seed only appears once its
+  // exotic unlock has been bought.
+  const sections = [
+    {
+      id: 'build',
+      title: '🧰 Build & Perks',
+      test: (i) => i.kind === 'decoration' || i.kind === 'upgrade',
+    },
+    { id: 'eggs', title: '🐣 Pet Eggs', test: (i) => i.kind === 'egg' },
+    { id: 'seeds', title: '🌱 Seeds', test: (i) => i.kind === 'seed' && i.crop !== 'nightFlower' },
+    {
+      id: 'exotic',
+      title: '✨ Exotic',
+      test: (i) =>
+        i.kind === 'exotic' ||
+        (i.kind === 'seed' && i.crop === 'nightFlower' && unlockedCrops.includes('nightFlower')),
+    },
+  ];
 
   // Eggs are repeatable — show how many the player already has in hand.
   const eggCount = (item) =>
@@ -109,66 +135,109 @@ export default function ShopHud() {
             Spend gathered goods on buildables &amp; perks
           </div>
 
-          {SHOP_ITEMS.map((item) => {
-            const owned = isOwned(item);
-            const ownedEggsCount = eggCount(item);
-            const affordable = canAfford(item.price, inventory);
+          {sections.map((section) => {
+            const items = SHOP_ITEMS.filter(section.test);
+            if (items.length === 0) return null;
             return (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
-              >
-                <span style={{ fontSize: 22 }}>{item.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{item.name}</div>
-                  <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 3 }}>{item.desc}</div>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {Object.entries(item.price).map(([res, amount]) => (
-                      <span
-                        key={res}
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: '1px 7px',
-                          borderRadius: 999,
-                          background: (inventory[res] ?? 0) >= amount ? 'rgba(255,209,102,0.18)' : 'rgba(255,107,107,0.18)',
-                          color: (inventory[res] ?? 0) >= amount ? '#ffd166' : '#ff8b8b',
-                        }}
-                      >
-                        {RESOURCES[res]?.emoji ?? res} ×{amount}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  disabled={owned || !affordable}
-                  onClick={() => buyItem(item.id)}
+              <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div
                   style={{
-                    flexShrink: 0,
-                    padding: '6px 12px',
-                    borderRadius: 10,
-                    border: 'none',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: owned || !affordable ? 'not-allowed' : 'pointer',
-                    background: owned
-                      ? 'rgba(74,222,128,0.22)'
-                      : affordable
-                        ? '#ffd166'
-                        : 'rgba(255,255,255,0.12)',
-                    color: owned ? '#7ee8a0' : affordable ? '#4a3800' : '#8a8a8a',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: 0.4,
+                    textTransform: 'uppercase',
+                    opacity: 0.65,
+                    marginTop: 4,
+                    paddingBottom: 2,
+                    borderBottom: '1px solid rgba(255,255,255,0.12)',
                   }}
                 >
-                  {owned ? '✓ Owned' : item.kind === 'egg' && ownedEggsCount > 0 ? `Buy ×${ownedEggsCount + 1}` : affordable ? 'Buy' : '—'}
-                </button>
+                  {section.title}
+                </div>
+                {items.map((item) => {
+                  const owned = isOwned(item);
+                  const ownedEggsCount = eggCount(item);
+                  const seedCount = item.kind === 'seed' ? seeds[item.crop] ?? 0 : 0;
+                  const affordable = canAfford(item.price, inventory);
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>{item.name}</div>
+                        <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 3 }}>{item.desc}</div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {item.kind === 'seed' && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '1px 7px',
+                                borderRadius: 999,
+                                background: 'rgba(158,232,168,0.14)',
+                                color: seedCount > 0 ? '#9fe8a8' : '#8a8a8a',
+                              }}
+                            >
+                              {seedCount > 0 ? `🌱 ${seedCount} owned` : '🌱 none owned'}
+                            </span>
+                          )}
+                          {Object.entries(item.price).map(([res, amount]) => (
+                            <span
+                              key={res}
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: '1px 7px',
+                                borderRadius: 999,
+                                background: (inventory[res] ?? 0) >= amount ? 'rgba(255,209,102,0.18)' : 'rgba(255,107,107,0.18)',
+                                color: (inventory[res] ?? 0) >= amount ? '#ffd166' : '#ff8b8b',
+                              }}
+                            >
+                              {RESOURCES[res]?.emoji ?? res} ×{amount}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        disabled={owned || !affordable}
+                        onClick={() => buyItem(item.id)}
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 12px',
+                          borderRadius: 10,
+                          border: 'none',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: owned || !affordable ? 'not-allowed' : 'pointer',
+                          background: owned
+                            ? 'rgba(74,222,128,0.22)'
+                            : affordable
+                              ? '#ffd166'
+                              : 'rgba(255,255,255,0.12)',
+                          color: owned ? '#7ee8a0' : affordable ? '#4a3800' : '#8a8a8a',
+                        }}
+                      >
+                        {owned
+                          ? '✓ Unlocked'
+                          : item.kind === 'egg' && ownedEggsCount > 0
+                            ? `Buy ×${ownedEggsCount + 1}`
+                            : affordable
+                              ? 'Buy'
+                              : '—'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}

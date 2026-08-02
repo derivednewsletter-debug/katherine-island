@@ -142,7 +142,11 @@ export function startSaveSync() {
       state.selectedPetId !== prev.selectedPetId ||
       state.quests !== prev.quests ||
       state.crops !== prev.crops ||
-      state.time !== prev.time;
+      state.seeds !== prev.seeds ||
+      state.unlockedCrops !== prev.unlockedCrops ||
+      state.weather !== prev.weather ||
+      state.time !== prev.time ||
+      state.farmOpen !== prev.farmOpen;
     if (!sliceChanged) return;
 
     clearTimeout(pushTimer);
@@ -209,6 +213,9 @@ export async function syncSaveFromCloud() {
     selectedPetId: state.selectedPetId ?? current.selectedPetId,
     quests: state.quests ?? current.quests,
     crops: state.crops ?? current.crops,
+    seeds: state.seeds ?? current.seeds,
+    unlockedCrops: state.unlockedCrops ?? current.unlockedCrops,
+    weather: state.weather ?? current.weather,
   });
   // The persist middleware re-saves the applied state locally; mark the
   // cloud as in-sync so a reload doesn't re-apply it.

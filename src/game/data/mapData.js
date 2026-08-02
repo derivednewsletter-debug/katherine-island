@@ -33,7 +33,12 @@ export const TERRAIN_TYPES = {
   peak:    { color: '#7f9b8a', height: 1.4,  label: 'Peak' },
 };
 
-export const GRID_SIZE = 160;
+export const GRID_SIZE = 200; // Expanded map for massive exploration (40,000 tiles vs 25,600)
+
+/** Camera zoom levels optimized for the bigger map - more zoom needed for exploration */
+export const CAMERA_MIN_ZOOM = 2; // Can zoom way out to see the full 200x200 archipelago
+export const CAMERA_MAX_ZOOM = 80; // Close-up detail
+export const CAMERA_DEFAULT_ZOOM = 10;
 
 /**
  * World-space size of one tile. Kept in sync so pathfinding/creature code

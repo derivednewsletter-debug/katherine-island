@@ -19,6 +19,21 @@
  *  - Flower Patch → +2 🌸 flowers (a happiness treat)
  *  - Jungle Fruit → +3 🍇 fruit (a hearty jungle meal)
  *  - Mountain Herb → +2 🌿 herbs (an energy tonic from the peaks)
+ *  - Night Flower → +3 🌸 flowers, EXOTIC — only grows on peaks and only
+ *    during NIGHT phases (see nightSecondsBetween). Unlocked at the shop's
+ *    exotic section; its seeds are sold separately afterwards.
+ *
+ * Every crop now needs SEEDS to plant (bought at the shop — a seed pack
+ * adds a few seeds to the pile; each planting consumes one).
+ *
+ * Growth is also WEATHER-AWARE (see rainBonus + wilt below):
+ *  - While a rain shower is falling, every growth second counts DOUBLE
+ *    (rainSpans + the active rainStartAt are passed in via the opts).
+ *  - Jungle fruit (wiltable) droops when the island goes too long without
+ *    rain: after `wiltAfter` dry game-seconds its growth starts draining
+ *    at `wiltRate` per dry second, and a new shower revives it. The whole
+ *    model stays DERIVED from (plantedAt, time, rain history) — zero
+ *    per-crop mutation, so pause/fast-forward/reload all stay consistent.
  */
 
 /** Growth durations (game-seconds) per stage: seed → sprout → grown → ready. */
@@ -27,6 +42,9 @@ const GROW = {
   flowerPatch: [18, 28, 24], // 70s
   fruitTree: [30, 40, 45], // 115s — the slow, valuable one
   mountainHerb: [22, 32, 30], // 84s
+  // Grows only at night: durations are NIGHT-seconds (see nightOnly below),
+  // so in real terms a full cycle takes ~2.5 day-night rounds.
+  nightFlower: [30, 45, 45], // 120 night-seconds ≈ 267 real game-seconds
 };
 
 /** Which walkable terrain types each crop may be planted on. */
@@ -35,6 +53,7 @@ const BIOMES = {
   flowerPatch: ['grass', 'jungle'],
   fruitTree: ['jungle'],
   mountainHerb: ['peak'],
+  nightFlower: ['peak'], // the rare late-game crop — peaks only
 };
 
 /** Harvest reward per crop (resource id → amount). */
@@ -43,6 +62,7 @@ const REWARDS = {
   flowerPatch: { flower: 2 },
   fruitTree: { fruit: 3 },
   mountainHerb: { herb: 2 },
+  nightFlower: { flower: 3 },
 };
 
 const LABELS = {
@@ -50,6 +70,12 @@ const LABELS = {
   flowerPatch: { label: 'Flower Patch', emoji: '🌸', color: '#ff9eb0', hint: 'Grass & jungle' },
   fruitTree: { label: 'Jungle Fruit', emoji: '🍇', color: '#b06ad4', hint: 'Jungle only' },
   mountainHerb: { label: 'Mountain Herb', emoji: '🌿', color: '#8fd694', hint: 'Peaks only' },
+  nightFlower: {
+    label: 'Night Flower',
+    emoji: '🌙',
+    color: '#c3b3ff',
+    hint: 'Peaks only · grows at night',
+  },
 };
 
 export const CROPS = {
@@ -73,6 +99,12 @@ export const CROPS = {
     biomes: BIOMES.fruitTree,
     durations: GROW.fruitTree,
     reward: REWARDS.fruitTree,
+    // Jungle fruit is the wiltable crop: after ~1.5 day-cycles without rain
+    // it starts drooping (growth drains at 0.15/s of dryness). A shower
+    // revives it instantly.
+    wiltable: true,
+    wiltAfter: 270, // dry game-seconds before wilting begins
+    wiltRate: 0.15, // growth-seconds lost per dry second past the grace
   },
   mountainHerb: {
     id: 'mountainHerb',
@@ -81,17 +113,132 @@ export const CROPS = {
     durations: GROW.mountainHerb,
     reward: REWARDS.mountainHerb,
   },
+  nightFlower: {
+    id: 'nightFlower',
+    ...LABELS.nightFlower,
+    biomes: BIOMES.nightFlower,
+    durations: GROW.nightFlower,
+    reward: REWARDS.nightFlower,
+    nightOnly: true, // stage advances only during night phases
+    exotic: true, // must be unlocked via the shop's exotic section
+  },
 };
 
 export function cropById(id) {
   return CROPS[id] ?? null;
 }
 
-/** Stage index: 0 seed, 1 sprout, 2 grown, 3 ready (harvestable). */
-export function cropStageIndex(crop, time) {
+/**
+ * One full day-night cycle in game-seconds — the SAME constant the store's
+ * clock uses. The night-only growth math below (nightSecondsBetween) counts
+ * night phases against this cycle, so a crop's clock can never drift from
+ * the sky. gameStore re-exports this so every existing `DAY_CYCLE_SECONDS`
+ * import keeps working with a single source of truth.
+ */
+export const DAY_CYCLE_SECONDS = 180;
+
+/**
+ * How many game-seconds in [from, to] fall inside NIGHT windows. Night runs
+ * from phase 0.75 → 1.0 and 0.0 → 0.2 of each cycle (matching timeOfDay's
+ * `isDay = phase >= 0.2 && phase < 0.75`), so night occupies 45% of a
+ * cycle. Iterates only over the cycles the interval touches — cheap for a
+ * few game-days of growth.
+ */
+export function nightSecondsBetween(from, to, dayCycleSeconds = DAY_CYCLE_SECONDS) {
+  if (to <= from) return 0;
+  const C = dayCycleSeconds;
+  const NIGHT_END = 0.2; // phase where night ends (dawn)
+  const NIGHT_START = 0.75; // phase where night begins (dusk)
+  let total = 0;
+  for (let k = Math.floor(from / C); k <= Math.floor(to / C); k++) {
+    const base = k * C;
+    // Window 1: [base, base + 0.2C) — the pre-dawn stretch of this cycle
+    const s1 = Math.max(from, base);
+    const e1 = Math.min(to, base + NIGHT_END * C);
+    if (e1 > s1) total += e1 - s1;
+    // Window 2: [base + 0.75C, base + C) — this cycle's evening
+    const s2 = Math.max(from, base + NIGHT_START * C);
+    const e2 = Math.min(to, base + C);
+    if (e2 > s2) total += e2 - s2;
+  }
+  return total;
+}
+
+/**
+ * Effective growth elapsed (weighted game-seconds) for a crop at `time`.
+ *
+ *   base   = normal growth (night-only crops only count night seconds)
+ *   rain   = +1 bonus second for every second the crop spent in rain
+ *            (a shower doubles growth while it lasts). Night-only crops
+ *            only gain from rain that falls during night phases.
+ *   wilt   = jungle fruit that's been dry too long loses growth
+ *
+ * opts: { dayCycleSeconds, rainSpans, rainStartAt, rainUntil }
+ *  - rainSpans: closed showers [{ start, end }] in game-seconds
+ *  - rainStartAt/rainUntil: the ACTIVE shower (start now, end in future)
+ *  - dayCycleSeconds: defaults to the shared 180s cycle
+ */
+/** The most recent moment this crop was watered: when it was planted, when
+ *  the last closed shower ended, or the active shower's end (rainUntil — in
+ *  the future while raining, so drought is 0 mid-shower). Shared by the
+ *  growth math and the wilt HUD badge so they can never disagree. */
+function lastWateredAt(crop, opts = {}) {
+  let lastWatered = crop.plantedAt;
+  for (const sp of opts.rainSpans ?? []) if (sp.end > lastWatered) lastWatered = sp.end;
+  if ((opts.rainUntil ?? 0) > lastWatered) lastWatered = opts.rainUntil;
+  return lastWatered;
+}
+
+function growthElapsed(crop, def, time, opts = {}) {
+  const C = opts.dayCycleSeconds ?? DAY_CYCLE_SECONDS;
+  const base = def.nightOnly
+    ? nightSecondsBetween(crop.plantedAt, time, C)
+    : Math.max(0, time - crop.plantedAt);
+
+  // Rain bonus — every rain second counts double
+  let rain = 0;
+  const addRain = (s, e) => {
+    const ss = Math.max(crop.plantedAt, s);
+    const ee = Math.min(time, e);
+    if (ee <= ss) return;
+    rain += def.nightOnly ? nightSecondsBetween(ss, ee, C) : ee - ss;
+  };
+  for (const sp of opts.rainSpans ?? []) addRain(sp.start, sp.end);
+  if (opts.rainStartAt && opts.rainStartAt < time) {
+    addRain(opts.rainStartAt, opts.rainUntil || time);
+  }
+
+  // Wilt — jungle fruit drains during long dry spells. During rain the
+  // "dry since" clock is in the future → dry = 0.
+  let wilt = 0;
+  if (def.wiltable) {
+    const dry = Math.max(0, time - lastWateredAt(crop, opts));
+    if (dry > def.wiltAfter) wilt = (dry - def.wiltAfter) * def.wiltRate;
+  }
+
+  return Math.max(0, base + rain - wilt);
+}
+
+/** Wilt loss in weighted seconds (0 for non-wiltable crops) — the Farm HUD
+ *  uses this to badge crops that are drooping. */
+export function cropWilt(crop, time, opts = {}) {
   const def = CROPS[crop.cropId];
   if (!def) return 0;
-  const elapsed = Math.max(0, time - crop.plantedAt);
+  if (!def.wiltable) return 0;
+  const dry = Math.max(0, time - lastWateredAt(crop, opts));
+  if (dry <= def.wiltAfter) return 0;
+  return (dry - def.wiltAfter) * def.wiltRate;
+}
+
+/**
+ * Stage index: 0 seed, 1 sprout, 2 grown, 3 ready (harvestable). Weather
+ * aware: rain doubles growth while falling, and wiltable crops regress
+ * during long dry spells. See growthElapsed for the opts shape.
+ */
+export function cropStageIndex(crop, time, opts = {}) {
+  const def = CROPS[crop.cropId];
+  if (!def) return 0;
+  const elapsed = growthElapsed(crop, def, time, opts);
   let acc = 0;
   for (let i = 0; i < def.durations.length; i++) {
     acc += def.durations[i];
@@ -100,12 +247,14 @@ export function cropStageIndex(crop, time) {
   return def.durations.length; // 3 = ready
 }
 
-/** 0..1 growth progress (for the ghost / future HUD). */
-export function cropProgress(crop, time) {
+/** 0..1 growth progress (for the ghost / Farm HUD). Weather aware — rain
+ *  accelerates, long dry spells drain wiltable crops. */
+export function cropProgress(crop, time, opts = {}) {
   const def = CROPS[crop.cropId];
   if (!def) return 0;
+  const elapsed = growthElapsed(crop, def, time, opts);
   const total = def.durations.reduce((a, b) => a + b, 0);
-  return Math.min(1, Math.max(0, time - crop.plantedAt) / total);
+  return Math.min(1, Math.max(0, elapsed) / total);
 }
 
 /**
@@ -224,6 +373,33 @@ export const CROP_PARTS = {
       { geom: 'cone', args: [0.06, 0.16, 4], pos: [0, 0.3, 0], rot: [0.35, 0, 0], color: '#7fb069' },
       { geom: 'sphere', args: [0.026, 6, 5], pos: [-0.05, 0.36, 0.03], rot: [0, 0, 0], color: '#e0e8ff' },
       { geom: 'sphere', args: [0.024, 6, 5], pos: [0.06, 0.34, -0.03], rot: [0, 0, 0], color: '#f2f6ff' },
+    ],
+  ],
+  nightFlower: [
+    // 0 seed — a dirt mound with a faintly glowing seed
+    [
+      { geom: 'sphere', args: [0.07, 8, 6], pos: [0, 0.03, 0], rot: [0, 0, 0], pscale: [1, 0.5, 1], color: '#8a6a4a' },
+      { geom: 'sphere', args: [0.024, 6, 5], pos: [0, 0.05, 0], rot: [0, 0, 0], color: '#c3b3ff' },
+    ],
+    // 1 sprout — a pale stem with a bud
+    [
+      { geom: 'cylinder', args: [0.012, 0.016, 0.2, 5], pos: [0, 0.11, 0], rot: [0.1, 0, 0.1], color: '#4c9e4f' },
+      { geom: 'sphere', args: [0.03, 8, 6], pos: [0, 0.22, 0], rot: [0, 0, 0], pscale: [1, 0.7, 1], color: '#b9a8ff' },
+    ],
+    // 2 grown — a taller stem with a half-open pale bloom
+    [
+      { geom: 'cylinder', args: [0.014, 0.018, 0.26, 5], pos: [0, 0.14, 0], rot: [0, 0, 0], color: '#4c9e4f' },
+      { geom: 'sphere', args: [0.045, 8, 6], pos: [0, 0.27, 0], rot: [0, 0, 0], pscale: [1, 0.65, 1], color: '#c3b3ff' },
+      { geom: 'sphere', args: [0.02, 6, 5], pos: [0.02, 0.29, 0.02], rot: [0, 0, 0], color: '#e0e8ff' },
+    ],
+    // 3 ready — the full glowing night bloom
+    [
+      { geom: 'cylinder', args: [0.014, 0.018, 0.28, 5], pos: [0, 0.15, 0], rot: [0, 0, 0], color: '#4c9e4f' },
+      { geom: 'sphere', args: [0.06, 8, 6], pos: [-0.04, 0.29, 0], rot: [0, 0, 0], pscale: [1, 0.5, 1], color: '#c3b3ff' },
+      { geom: 'sphere', args: [0.06, 8, 6], pos: [0.04, 0.29, 0], rot: [0, 0, 0], pscale: [1, 0.5, 1], color: '#b9a8ff' },
+      { geom: 'sphere', args: [0.055, 8, 6], pos: [0, 0.32, 0.03], rot: [0, 0, 0], pscale: [1, 0.5, 1], color: '#d8ccff' },
+      { geom: 'sphere', args: [0.028, 8, 6], pos: [0, 0.32, 0], rot: [0, 0, 0], color: '#fff6d6' }, // glowing heart
+      { geom: 'sphere', args: [0.018, 6, 5], pos: [0.03, 0.3, 0.05], rot: [0, 0, 0], color: '#ffe9a8' },
     ],
   ],
 };

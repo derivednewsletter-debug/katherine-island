@@ -16,6 +16,8 @@ const toTools = (unlocked) => [...BASE_KINDS, ...unlocked.filter((k) => k !== 'e
 export default function PlacementHud() {
   const placement = useGameStore((s) => s.placement);
   const unlocked = useGameStore((s) => s.unlockedDecorations);
+  const seeds = useGameStore((s) => s.seeds);
+  const unlockedCrops = useGameStore((s) => s.unlockedCrops);
   const TOOLS = toTools(unlocked);
 
   // Esc cancels build mode
@@ -75,7 +77,9 @@ export default function PlacementHud() {
           {placement.tool === 'erase'
             ? 'Click a decoration or crop to remove it · Esc to exit'
             : placement.tool?.startsWith('crop:')
-              ? 'Green = right biome · click to plant · Esc to exit'
+              ? (seeds[placement.tool.slice(5)] ?? 0) > 0
+                ? 'Green = right biome · click to plant · Esc to exit'
+                : '🌱 Out of seeds — buy some at the shop · Esc to exit'
               : 'Click land to plant · Esc to exit'}
         </span>
       )}
@@ -103,15 +107,37 @@ export default function PlacementHud() {
         {Object.values(CROPS).map((crop) => {
           const tool = `crop:${crop.id}`;
           const isActive = placement.active && placement.tool === tool;
+          // Exotic crops are locked until bought at the shop's exotic section
+          const locked = crop.exotic && !unlockedCrops.includes(crop.id);
+          const seedCount = seeds[crop.id] ?? 0;
+          if (locked) {
+            return (
+              <button
+                key={crop.id}
+                className="palette-btn locked"
+                onClick={() => useGameStore.getState().toggleShop()}
+                title={`${crop.emoji} ${crop.label} — unlock at the shop's exotic section`}
+              >
+                <span style={{ fontSize: 16 }}>🔒</span>
+                <span className="palette-btn-label">{crop.label}</span>
+              </button>
+            );
+          }
           return (
             <button
               key={crop.id}
               className={isActive ? 'palette-btn active' : 'palette-btn'}
               onClick={() => useGameStore.getState().togglePlacement(tool)}
-              title={`${crop.label} — ${crop.hint} · grows over the day`}
+              title={`${crop.label} — ${crop.hint} · ${seedCount > 0 ? `${seedCount} seeds owned` : 'no seeds — buy at the shop'}`}
             >
               <span style={{ fontSize: 16 }}>{crop.emoji}</span>
               <span className="palette-btn-label">{crop.label}</span>
+              <span
+                className="palette-seed-badge"
+                style={{ color: seedCount > 0 ? '#9fe8a8' : '#ff9b9b' }}
+              >
+                {seedCount > 0 ? `×${seedCount}` : '0'}
+              </span>
             </button>
           );
         })}

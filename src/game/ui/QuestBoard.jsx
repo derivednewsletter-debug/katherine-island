@@ -39,11 +39,19 @@ export default function QuestBoard() {
     }
   };
 
+  // Opening the quest board closes the Farm panel (they share the top-left
+  // corner) — mutual exclusion keeps the two panels from stacking.
+  const openQuestBoard = () => {
+    const st = useGameStore.getState();
+    if (st.farmOpen) st.toggleFarm();
+    st.toggleQuestBoard();
+  };
+
   return (
     <>
       {/* Floating Quests button — under the title overlay (top-left) */}
       <button
-        onClick={toggleQuestBoard}
+        onClick={openQuestBoard}
         style={{
           position: 'absolute',
           top: 118,

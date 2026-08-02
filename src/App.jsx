@@ -6,13 +6,17 @@ import TimeControl from './game/ui/TimeControl';
 import PlacementHud from './game/ui/PlacementHud';
 import ShopHud from './game/ui/ShopHud';
 import QuestBoard from './game/ui/QuestBoard';
+import FarmHud from './game/ui/FarmHud';
 import Minimap from './game/ui/Minimap';
 import NamingModal from './game/ui/NamingModal';
 import ToastHud from './game/ui/ToastHud';
 import { startGameClock } from './game/state/gameClock';
 import { startNeedsSystem } from './game/state/needs';
+import { startWeatherSystem } from './game/state/weather';
 import { startOcean, stopOcean, isOceanPlaying } from './game/audio/ocean';
 import { startMusic, stopMusic, isMusicPlaying, setSoundEnabled } from './game/audio/sfx';
+import { setRainAudio } from './game/audio/rain';
+import { useGameStore } from './game/state/gameStore';
 import { startSaveSync, syncSaveFromCloud } from './game/state/saveSync';
 
 /**
@@ -31,6 +35,7 @@ export default function App() {
   useEffect(() => {
     startGameClock();
     startNeedsSystem();
+    startWeatherSystem(); // rare rain showers off the shared game clock
     let stopSync = null;
     let cancelled = false;
     syncSaveFromCloud().then(() => {
@@ -48,12 +53,15 @@ export default function App() {
     if (isOceanPlaying()) {
       stopOcean();
       stopMusic();
+      setRainAudio(false);
       setSoundEnabled(false);
       setSoundOn(false);
     } else {
       setSoundEnabled(true);
       startOcean();
       startMusic();
+      // If a shower is already falling when sound comes on, fade its patter in
+      setRainAudio(!!useGameStore.getState().weather?.raining);
       setSoundOn(true);
     }
   };
@@ -88,6 +96,9 @@ export default function App() {
 
       {/* Quest board (top-left, under the title) */}
       <QuestBoard />
+
+      {/* Farm HUD (top-left, under Quests) — manage every planted crop */}
+      <FarmHud />
 
       {/* Minimap (bottom-left, above the time controls) */}
       <Minimap />

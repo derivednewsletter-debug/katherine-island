@@ -13,6 +13,8 @@ import Eggs from './Egg';
 import Pets from './Pets';
 import Crops from './Crops';
 import FogOfWar from './FogOfWar';
+import Rain from './Rain';
+import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM, CAMERA_DEFAULT_ZOOM } from '../data/mapData';
 
 /**
  * Scene content rendered inside the R3F Canvas.
@@ -23,15 +25,15 @@ function SceneContent() {
   return (
     <>
       {/* ── Camera ──
-          The island is now 160 tiles wide, so the default zoom frames the
+          The island is now 200 tiles wide, so the default zoom frames the
           spawn region with the island sprawling into the distance. Scroll
-          way out (minZoom 3) to see the whole archipelago. */}
+          way out (minZoom 2) to see the whole 200×200 archipelago. */}
       <OrthographicCamera
         makeDefault
-        position={[50, 55, 50]}
-        zoom={9}
+        position={[60, 60, 60]}
+        zoom={CAMERA_DEFAULT_ZOOM}
         near={0.1}
-        far={900}
+        far={1000}
       />
 
       {/* ── Controls ──
@@ -47,8 +49,8 @@ function SceneContent() {
         dampingFactor={0.12}
         panSpeed={1.6}
         zoomSpeed={0.9}
-        minZoom={3}
-        maxZoom={70}
+        minZoom={CAMERA_MIN_ZOOM}
+        maxZoom={CAMERA_MAX_ZOOM}
         screenSpacePanning={false}
         target={[0, 0, 0]}
       />
@@ -61,6 +63,9 @@ function SceneContent() {
 
       {/* ── Fog of war — dims unexplored terrain until the camera sees it ── */}
       <FogOfWar />
+
+      {/* ── Rain — full-island shower streaks, faded in by the weather ── */}
+      <Rain />
 
       {/* ── Map Grid ── */}
       <Suspense fallback={null}>
@@ -89,8 +94,9 @@ export default function GameScene() {
       gl={{
         antialias: true,
         toneMapping: 3, // ACESFilmic
-        toneMappingExposure: 1.1,
+        toneMappingExposure: 1.2,
         outputColorSpace: 'srgb',
+        powerPreference: 'high-performance',
       }}
       style={{ background: '#87ceeb' }}
     >

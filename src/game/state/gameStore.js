@@ -22,11 +22,14 @@ import { TILE_THICKNESS } from '../components/Tile';
 import { shopItem, canAfford, deductPrice, KIOSK_TILE } from '../data/shop';
 import { PET_SPECIES, EGG_HATCH_MS, pickPetHome } from '../data/species';
 import { questById, freshQuests, questIndexByMetric } from '../data/quests';
-import { cropById, cropStageIndex } from '../data/crops';
+import { cropById, cropStageIndex, DAY_CYCLE_SECONDS as CYCLE_SECONDS } from '../data/crops';
 import { RESOURCES } from '../data/resources';
 
-/** Seconds of game time per full day-night cycle. */
-export const DAY_CYCLE_SECONDS = 180;
+/** Seconds of game time per full day-night cycle. The value lives in
+ *  data/crops.js (night-only crop growth counts phases against it) and is
+ *  re-exported here so every existing `DAY_CYCLE_SECONDS` import keeps
+ *  working with a single source of truth. */
+export const DAY_CYCLE_SECONDS = CYCLE_SECONDS;
 
 /**
  * Save schema version — bump whenever a saved island becomes invalid
@@ -122,6 +125,11 @@ export const useGameStore = create(
   quests: freshQuests(), // [{ id, progress, claimed }]
   questBoardOpen: false,
 
+  // ── Farm HUD ──
+  // Transient panel (like the shop/quest board) listing every planted crop
+  // with its stage + progress; NOT persisted.
+  farmOpen: false,
+
   // ── Crops ──
   // Player-planted crops growing on the island. Growth is derived from the
   // shared game clock (crop.plantedAt is in game-seconds), so pause/speed
@@ -130,9 +138,35 @@ export const useGameStore = create(
   crops: [], // [{ id, cropId, row, col, x, z, y, rot, scale, plantedAt }]
   toast: null, // { id, text } | null
 
+  // ── Seed economy ──
+  // Seeds are bought at the shop (seed packs); planting a crop consumes one
+  // seed from the matching pile. `unlockedCrops` holds rare crops revealed
+  // by the shop's exotic section (currently the night flower) — the plant
+  // palette gates on it. Both persist.
+  seeds: {}, // { berryBush: 3, nightFlower: 2, ... }
+  unlockedCrops: [], // ['nightFlower', ...]
+
+  // ── Weather ──
+  // Rare passing rain showers, scheduled off the shared game clock by
+  // weather.js. While raining, crop growth runs 2x and the scene dims +
+  // plays rain audio. `rainSpans` (closed showers, game-seconds) drive the
+  // derived growth math, so it all stays consistent across pause/speed/
+  // reload. The whole slice persists (game-time based like the clock).
+  weather: {
+    raining: false,
+    rainStartAt: 0, // game-time the active shower began (0 = none)
+    rainUntil: 0, // game-time the active shower ends
+    nextRainAt: 0, // game-time to roll the next shower (0 = unscheduled)
+    rainSpans: [], // [{ start, end }] — pruned by weather.js
+    wiltToastShown: false, // one-time warning to prevent spam
+  },
+
   // ── Actions ──
   /** Advance the clock by `gameDt` game-seconds (called by gameClock loop). */
   advanceTime: (gameDt) => set((s) => ({ time: s.time + gameDt })),
+
+  /** Merge a partial weather update (used by the weather system). */
+  setWeather: (partial) => set((s) => ({ weather: { ...s.weather, ...partial } })),
 
   setTimeScale: (scale) => set({ timeScale: scale }),
 
@@ -302,6 +336,16 @@ export const useGameStore = create(
       if (!s.placement.active || s.placement.tool !== `crop:${cropId}`) return s;
       const def = cropById(cropId);
       if (!def || !canPlantCrop(s, cropId, row, col)) return s;
+      // Seed economy: planting consumes one seed. A toast explains when the
+      // pile is empty so the failed click isn't silent.
+      if ((s.seeds[cropId] ?? 0) < 1) {
+        return {
+          toast: {
+            id: (s.toast?.id ?? 0) + 1,
+            text: `${def.emoji} No ${def.label} seeds — buy some at the shop!`,
+          },
+        };
+      }
       const tile = getTile(row, col);
       const { x, z } = gridToWorld(row, col);
       return {
@@ -320,6 +364,7 @@ export const useGameStore = create(
             plantedAt: s.time, // game-seconds — growth runs on the shared clock
           },
         ],
+        seeds: { ...s.seeds, [cropId]: s.seeds[cropId] - 1 },
         placement: { active: false, tool: null, eggId: null },
       };
     }),
@@ -331,7 +376,11 @@ export const useGameStore = create(
     const crop = s.crops.find((c) => c.row === row && c.col === col);
     if (!crop) return false;
     const def = cropById(crop.cropId);
-    if (!def || cropStageIndex(crop, s.time) < def.durations.length) return false; // not ready
+    // Weather-aware readiness: rain growth counts double, and a wilted
+    // jungle fruit may have regressed below ready.
+    if (!def || cropStageIndex(crop, s.time, weatherOpts(s)) < def.durations.length) {
+      return false;
+    }
     const inventory = { ...s.inventory };
     const texts = [];
     for (const [resource, amount] of Object.entries(def.reward)) {
@@ -357,6 +406,9 @@ export const useGameStore = create(
 
   // ── Quest board ──
   toggleQuestBoard: () => set((s) => ({ questBoardOpen: !s.questBoardOpen })),
+
+  // ── Farm HUD ──
+  toggleFarm: () => set((s) => ({ farmOpen: !s.farmOpen })),
 
   /**
    * Advance every quest watching `metric` by `amount` (clamped to target).
@@ -408,6 +460,10 @@ export const useGameStore = create(
       if (!item) return s;
       if (item.kind === 'upgrade' && s.upgrades[itemId]) return s; // owned
       if (item.kind === 'decoration' && s.unlockedDecorations.includes(itemId)) return s; // owned
+      if (item.kind === 'exotic' && s.unlockedCrops.includes(item.crop)) return s; // owned
+      // Defense-in-depth: rare seeds can't be hoarded before their exotic
+      // unlock is bought (the UI hides them, but the store should refuse too).
+      if (item.kind === 'seed' && item.crop === 'nightFlower' && !s.unlockedCrops.includes(item.crop)) return s;
       if (!canAfford(item.price, s.inventory)) return s;
 
       const inventory = deductPrice(item.price, s.inventory);
@@ -421,6 +477,17 @@ export const useGameStore = create(
       if (item.kind === 'egg') {
         // Eggs are repeatable — every purchase adds another unhatched egg.
         return { inventory, ownedEggs: [...s.ownedEggs, { id: uid(), species: item.species }] };
+      }
+      if (item.kind === 'exotic') {
+        // One-time unlock — reveals the rare crop in the plant palette.
+        return { inventory, unlockedCrops: [...s.unlockedCrops, item.crop] };
+      }
+      if (item.kind === 'seed') {
+        // Seed packs are repeatable — each adds to the matching pile.
+        return {
+          inventory,
+          seeds: { ...s.seeds, [item.crop]: (s.seeds[item.crop] ?? 0) + item.count },
+        };
       }
       return { inventory, upgrades: { ...s.upgrades, [itemId]: true } };
     }),
@@ -679,7 +746,17 @@ export const useGameStore = create(
       placement: { active: false, tool: null, eggId: null },
       quests: freshQuests(),
       questBoardOpen: false,
+      farmOpen: false,
       crops: [],
+      seeds: {},
+      unlockedCrops: [],
+      weather: {
+        raining: false,
+        rainStartAt: 0,
+        rainUntil: 0,
+        nextRainAt: 0,
+        rainSpans: [],
+      },
       toast: null,
     });
   },
@@ -713,6 +790,9 @@ export const useGameStore = create(
         selectedPetId: s.selectedPetId,
         quests: s.quests,
         crops: s.crops,
+        seeds: s.seeds,
+        unlockedCrops: s.unlockedCrops,
+        weather: s.weather,
       }),
       // After a save loads, re-merge the regenerated scatter with the
       // player's planted props / erased cells into `decorations`, and
@@ -728,8 +808,18 @@ export const useGameStore = create(
           backfilled = true;
           return { ...p, home: pickPetHome(p.species) };
         });
+        // Saves from before the weather feature lack the slice — backfill a
+        // fresh one so growth math never reads undefined spans.
+        const weather = state.weather ?? {
+          raining: false,
+          rainStartAt: 0,
+          rainUntil: 0,
+          nextRainAt: 0,
+          rainSpans: [],
+        };
         useGameStore.setState({
           decorations: mergeDecorations(generateInitialDecorations(), planted, removed),
+          weather,
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
           ...(backfilled ? { pets } : {}),
@@ -764,6 +854,20 @@ function uid() {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * The weather opts every crop-growth call needs — derived straight from the
+ * persisted weather slice so growth math (rain 2x, wilt) can never drift
+ * from what the sky is doing.
+ */
+export function weatherOpts(s) {
+  return {
+    dayCycleSeconds: s.dayCycleSeconds,
+    rainSpans: s.weather?.rainSpans ?? [],
+    rainStartAt: s.weather?.rainStartAt ?? 0,
+    rainUntil: s.weather?.rainUntil ?? 0,
+  };
 }
 
 /**
@@ -834,6 +938,8 @@ export function canPlantCrop(s, cropId, row, col) {
   const tile = getTile(row, col);
   if (!def || !tile || !isWalkable(tile)) return false;
   if (!def.biomes.includes(tile.type)) return false; // biome-gated!
+  if ((s.seeds[cropId] ?? 0) < 1) return false; // seed economy — nothing to plant
+  if (def.exotic && !s.unlockedCrops.includes(cropId)) return false; // still locked
   if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return false;
   if (row === BED_SPOT.row && col === BED_SPOT.col) return false;
   if (s.creaturePos && s.creaturePos.row === row && s.creaturePos.col === col) return false;
