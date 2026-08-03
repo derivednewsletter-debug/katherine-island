@@ -13,7 +13,7 @@ import {
 } from '../data/mapData';
 import { resourceForTerrain, GATHER_COOLDOWN_MS } from '../data/resources';
 import { KIOSK_TILE } from '../data/shop';
-import { useGameStore } from '../state/gameStore';
+import { useGameStore, canTill } from '../state/gameStore';
 import { playGatherPop } from '../audio/sfx';
 import { TILE_THICKNESS } from './Tile';
 
@@ -281,6 +281,22 @@ export default function MapGrid() {
     const tile = getTile(row, col);
     if (!tile) return;
     setSelected({ row, col });
+
+    // Hoe owns the click: till the soil instead of gathering resources.
+    const s0 = useGameStore.getState();
+    if (s0.playerTool === 'hoe') {
+      if (canTill(s0, row, col)) {
+        s0.tillTile(row, col);
+        const tools = s0.tools ?? { axe: 50, hoe: 50 };
+        const newDurability = Math.max(0, (tools.hoe ?? 0) - 1);
+        useGameStore.setState({ tools: { ...tools, hoe: newDurability } });
+        playGatherPop();
+        s0.showToast(newDurability <= 0 ? 'Your hoe is broken!' : 'Tilled the soil!');
+      } else {
+        s0.showToast('Can\'t till here');
+      }
+      return;
+    }
 
     const resource = resourceForTerrain(tile.type);
     if (!resource) return; // water/shallow: nothing to gather
