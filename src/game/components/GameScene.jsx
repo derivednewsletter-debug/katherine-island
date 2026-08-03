@@ -13,6 +13,7 @@ import DayNightCycle from './DayNightCycle';
 import Eggs from './Egg';
 import Pets from './Pets';
 import Crops from './Crops';
+import Plots from './Plots';
 import FogOfWar from './FogOfWar';
 import Rain from './Rain';
 import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM, CAMERA_DEFAULT_ZOOM } from '../data/mapData';
@@ -78,6 +79,7 @@ function SceneContent() {
         <Decorations />
         <Eggs />
         <Crops />
+        <Plots />
         <PlacementSystem />
         <ShopKiosk />
       </Suspense>
