@@ -150,6 +150,7 @@ export const useGameStore = create(
   // and the day-night cycle drive the stages. `toast` is a transient HUD
   // message (harvest feedback, etc.) — never persisted.
   crops: [], // [{ id, cropId, row, col, x, z, y, rot, scale, plantedAt }]
+  plots: [], // [{ id, row, col, x, z, y, rot, scale }] tilled soil plots
   toast: null, // { id, text } | null
 
   // ── Seed economy ──
@@ -409,7 +410,7 @@ export const useGameStore = create(
     set((s) => {
       if (!s.placement.active || s.placement.tool !== `crop:${cropId}`) return s;
       const def = cropById(cropId);
-      if (!def || !canPlantCrop(s, cropId, row, col)) return s;
+      if (!def) return s;
       // Seed economy: planting consumes one seed. A toast explains when the
       // pile is empty so the failed click isn't silent.
       if ((s.seeds[cropId] ?? 0) < 1) {
@@ -420,6 +421,17 @@ export const useGameStore = create(
           },
         };
       }
+      // Seeds only take root in tilled soil
+      if (!s.plots.some((p) => p.row === row && p.col === col)) {
+        return {
+          toast: {
+            id: (s.toast?.id ?? 0) + 1,
+            text: `${def.emoji} Till the soil first — equip the hoe (2) and click the ground`,
+          },
+        };
+      }
+      // Biome + occupancy gate (silent; the ghost is red before you click).
+      if (!canPlantCrop(s, cropId, row, col)) return s;
       const tile = getTile(row, col);
       const { x, z } = gridToWorld(row, col);
       return {
@@ -477,6 +489,36 @@ export const useGameStore = create(
       if (!s.crops.some((c) => c.row === row && c.col === col)) return s;
       return { crops: s.crops.filter((c) => !(c.row === row && c.col === col)) };
     }),
+
+  /** Till the soil under a walkable land tile (hoe equipped only). */
+  tillTile: (row, col) =>
+    set((s) => {
+      if (s.playerTool !== 'hoe') return s;
+      if (!canTill(s, row, col)) return s;
+      const tile = getTile(row, col);
+      const { x, z } = gridToWorld(row, col);
+      return {
+        plots: [
+          ...s.plots,
+          {
+            id: uid(),
+            row,
+            col,
+            x,
+            z,
+            y: tile.height + TILE_THICKNESS,
+            rot: Math.random() * Math.PI * 2,
+            scale: 1,
+          },
+        ],
+      };
+    }),
+
+  /** Remove a tilled plot (eraser). */
+  removePlot: (row, col) =>
+    set((s) => ({
+      plots: s.plots.filter((p) => !(p.row === row && p.col === col)),
+    })),
 
   // ── Quest board ──
   toggleQuestBoard: () => set((s) => ({ questBoardOpen: !s.questBoardOpen })),
@@ -843,6 +885,7 @@ export const useGameStore = create(
       questBoardOpen: false,
       farmOpen: false,
       crops: [],
+      plots: [],
       seeds: {},
       unlockedCrops: [],
       weather: {
@@ -893,6 +936,7 @@ export const useGameStore = create(
         selectedPetId: s.selectedPetId,
         quests: s.quests,
         crops: s.crops,
+        plots: s.plots,
         seeds: s.seeds,
         unlockedCrops: s.unlockedCrops,
         weather: s.weather,
@@ -930,6 +974,7 @@ export const useGameStore = create(
         useGameStore.setState({
           decorations: mergeDecorations(generateInitialDecorations(), planted, removed),
           weather,
+          plots: state.plots ?? [],
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
           ...(petBackfilled ? { pets } : {}),
@@ -1040,9 +1085,29 @@ export function canPlaceEggTile(s, row, col) {
 }
 
 /**
+ * Can this cell be tilled? Same occupancy rules as planting (walkable land,
+ * not kiosk/bed/spawn/pet/egg/decoration/crop/plot) — the hoe's soil check.
+ */
+export function canTill(s, row, col) {
+  const tile = getTile(row, col);
+  if (!tile || !isWalkable(tile)) return false;
+  if (row === SPAWN_POINT.row && col === SPAWN_POINT.col) return false;
+  if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return false;
+  if (row === BED_SPOT.row && col === BED_SPOT.col) return false;
+  if (s.creaturePos && s.creaturePos.row === row && s.creaturePos.col === col) return false;
+  if (s.pets.some((p) => p.pos && p.pos.row === row && p.pos.col === col)) return false;
+  if (s.decorations.some((d) => d.row === row && d.col === col)) return false;
+  if (s.placedEggs.some((e) => e.row === row && e.col === col)) return false;
+  if (s.crops.some((c) => c.row === row && c.col === col)) return false;
+  if (s.plots.some((p) => p.row === row && p.col === col)) return false;
+  return true;
+}
+
+/**
  * Can a crop be planted on this cell? The tile must be walkable land whose
- * terrain is in the crop's biome list, and it can't collide with the kiosk,
- * the bed, the creature, a pet, an egg, a decoration, or another crop.
+ * terrain is in the crop's biome list AND already tilled (a plot must exist),
+ * and it can't collide with the kiosk, the bed, the creature, a pet, an egg,
+ * a decoration, or another crop.
  * Used by the crop ghost (PlacementSystem), plantCrop, and the store action.
  */
 export function canPlantCrop(s, cropId, row, col) {
@@ -1052,6 +1117,7 @@ export function canPlantCrop(s, cropId, row, col) {
   if (!def.biomes.includes(tile.type)) return false; // biome-gated!
   if ((s.seeds[cropId] ?? 0) < 1) return false; // seed economy — nothing to plant
   if (def.exotic && !s.unlockedCrops.includes(cropId)) return false; // still locked
+  if (!s.plots.some((p) => p.row === row && p.col === col)) return false; // needs tilled soil!
   if (row === KIOSK_TILE.row && col === KIOSK_TILE.col) return false;
   if (row === BED_SPOT.row && col === BED_SPOT.col) return false;
   if (s.creaturePos && s.creaturePos.row === row && s.creaturePos.col === col) return false;
