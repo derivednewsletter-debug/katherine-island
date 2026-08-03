@@ -12,7 +12,15 @@ const SPEEDS = [1, 2, 4];
  * affect the whole game at once.
  */
 export default function TimeControl() {
-  const time = useGameStore((s) => s.time);
+  // Frugal selectors: `time` advances 60×/sec, so subscribing to it raw
+  // re-rendered the whole control every frame. These three primitives only
+  // change when something VISIBLE changes — day (once per cycle), the
+  // progress % (~twice/sec), and the sun/moon flag (only at dawn/dusk).
+  const day = useGameStore((s) => timeOfDay(s.time, s.dayCycleSeconds).day);
+  const phasePct = useGameStore((s) =>
+    Math.round(((s.time % s.dayCycleSeconds) / s.dayCycleSeconds) * 100)
+  );
+  const isDay = useGameStore((s) => timeOfDay(s.time, s.dayCycleSeconds).isDay);
   const timeScale = useGameStore((s) => s.timeScale);
   const paused = useGameStore((s) => s.paused);
   const togglePause = useGameStore((s) => s.togglePause);
@@ -40,7 +48,7 @@ export default function TimeControl() {
     return () => window.removeEventListener('keydown', onKey);
   }, [togglePause]);
 
-  const { day, phase, isDay } = timeOfDay(time);
+  const phase = phasePct / 100;
   const iconName = isDay ? 'sun' : 'moon';
   const nextSpeed = SPEEDS[(SPEEDS.indexOf(timeScale) + 1) % SPEEDS.length];
 

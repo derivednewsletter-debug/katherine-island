@@ -10,13 +10,26 @@ import { onGameTick } from './gameClock';
 
 let started = false;
 
+// Needs drain slowly (minutes to deplete), so writing + re-rendering the
+// HUD at 60fps is pure waste. Accumulate game-time and flush the store
+// ~5x/sec instead; the drain math is linear so passing the accumulated dt
+// in one call is identical to many tiny ones.
+const FLUSH_INTERVAL = 0.2; // seconds of accumulated game time per flush
+let acc = 0;
+
 /** Start draining needs on every game tick. Idempotent (StrictMode-safe). */
 export function startNeedsSystem() {
   if (started) return;
   started = true;
   onGameTick((gameDt) => {
+    acc += gameDt;
+    if (acc < FLUSH_INTERVAL) return;
+
+    const flush = acc; // drain + care gate must use the SAME accumulated dt
+    acc = 0;
+
     const store = useGameStore.getState();
-    store.drainNeeds(gameDt);
+    store.drainNeeds(flush);
 
     // Well-cared-for pets (all needs comfortably full) slowly earn care
     // points toward their next evolution — petting is the fast way, but
@@ -28,7 +41,7 @@ export function startNeedsSystem() {
     if (store.sleeping) return;
     const { hunger, energy, happiness } = useGameStore.getState().needs;
     if (hunger > 70 && energy > 70 && happiness > 70) {
-      useGameStore.getState().addCare(CARE_PER_GAME_SECOND * gameDt);
+      useGameStore.getState().addCare(CARE_PER_GAME_SECOND * flush);
     }
   });
 }

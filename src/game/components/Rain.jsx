@@ -60,6 +60,11 @@ export default function Rain() {
     if (matRef.current) matRef.current.opacity = opacity.current;
     if (lineRef.current) lineRef.current.visible = opacity.current > 0.02;
 
+    // Fully faded out → skip the fall simulation entirely (the streaks are
+    // invisible, so recycling them buys nothing). Saves ~900 iterations/frame
+    // whenever the sky is dry.
+    if (!raining && opacity.current < 0.02) return;
+
     // Fall: move every streak down, recycling to the top once below ground
     const pos = positions;
     const step = FALL_SPEED * dt;

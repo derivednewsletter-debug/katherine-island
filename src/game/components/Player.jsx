@@ -49,6 +49,7 @@ const TOOLS = ['axe', 'hoe', null];
 export default function Player() {
   const groupRef = useRef();
   const bodyRef = useRef();
+  const targetVecRef = useRef(new THREE.Vector3());
   const leftArmRef = useRef();
   const rightArmRef = useRef();
 
@@ -211,7 +212,7 @@ export default function Player() {
     // Update group position
     if (groupRef.current) {
       groupRef.current.position.lerp(
-        new THREE.Vector3(worldPos[0], worldPos[1], worldPos[2]),
+        targetVecRef.current.set(worldPos[0], worldPos[1], worldPos[2]),
         1 - Math.exp(-dt * 8)
       );
       // Face direction

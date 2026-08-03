@@ -38,6 +38,8 @@ export default function CameraTracker() {
   const corners = useRef(NDC_CORNERS.map(() => new THREE.Vector3()));
   const lastSave = useRef(0);
   const lastSavedVersion = useRef(0);
+  // Cache of the last marked grid rect so idle frames skip the fog scan
+  const lastRect = useRef({ r0: -1, c0: -1, r1: -1, c1: -1 });
 
   // Boot: restore any previously explored tiles before the first frame
   // paints the fog, so a reload doesn't wipe the player's discovery.
@@ -107,10 +109,17 @@ export default function CameraTracker() {
     // ── 4. Fog of war: the visible footprint is now explored ──
     // Convert the ground bbox corners to grid cells and mark the whole
     // rect. Camera motion (pan/zoom/flights) reveals the map naturally;
-    // idle frames mark nothing new so `version` doesn't bump.
+    // idle frames (identical rect) skip the scan so `version` doesn't bump.
     const a = worldToGrid(minX, minZ);
     const b = worldToGrid(maxX, maxZ);
-    markExploredRect(a.row, a.col, b.row, b.col);
+    const rect = lastRect.current;
+    if (a.row !== rect.r0 || a.col !== rect.c0 || b.row !== rect.r1 || b.col !== rect.c1) {
+      rect.r0 = a.row;
+      rect.c0 = a.col;
+      rect.r1 = b.row;
+      rect.c1 = b.col;
+      markExploredRect(a.row, a.col, b.row, b.col);
+    }
     // Throttled persistence — only while actively exploring (new tiles
     // found since the last save), and only a couple times a second at most.
     const now = state.clock.elapsedTime * 1000;
