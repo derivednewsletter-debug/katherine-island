@@ -47,10 +47,11 @@ export default function PlacementSystem() {
   /** Is a click on this cell going to do something useful with `tool`? */
   const isActionable = (toolId, s, row, col) => {
     if (toolId === 'erase') {
-      // Eraser removes decorations OR crops
+      // Eraser removes decorations, crops, OR tilled soil
       return (
         s.decorations.some((d) => d.row === row && d.col === col) ||
-        s.crops.some((c) => c.row === row && c.col === col)
+        s.crops.some((c) => c.row === row && c.col === col) ||
+        s.plots.some((p) => p.row === row && p.col === col)
       );
     }
     if (toolId === 'egg') {
@@ -101,6 +102,7 @@ export default function PlacementSystem() {
     if (tool === 'erase') {
       s.removeDecoration(row, col);
       s.removeCrop(row, col);
+      s.removePlot(row, col);
     } else if (tool === 'egg') {
       s.placeEgg(row, col);
     } else if (typeof tool === 'string' && tool.startsWith('crop:')) {
