@@ -146,6 +146,7 @@ export function startSaveSync() {
       state.selectedPetId !== prev.selectedPetId ||
       state.quests !== prev.quests ||
       state.crops !== prev.crops ||
+      state.plots !== prev.plots ||
       state.seeds !== prev.seeds ||
       state.unlockedCrops !== prev.unlockedCrops ||
       state.weather !== prev.weather ||
@@ -217,6 +218,7 @@ export async function syncSaveFromCloud() {
     selectedPetId: state.selectedPetId ?? current.selectedPetId,
     quests: state.quests ?? current.quests,
     crops: state.crops ?? current.crops,
+    plots: state.plots ?? current.plots,
     seeds: state.seeds ?? current.seeds,
     unlockedCrops: state.unlockedCrops ?? current.unlockedCrops,
     weather: state.weather ?? current.weather,
