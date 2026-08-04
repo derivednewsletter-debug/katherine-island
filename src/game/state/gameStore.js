@@ -68,6 +68,8 @@ export const useGameStore = create(
     flower: 0,
     fruit: 0,
     herb: 0,
+    soap: 0,
+    medkit: 0,
   },
 
   // ── Player (avatar controlled by the player with WASD) ──
@@ -368,6 +370,50 @@ export const useGameStore = create(
         needs: { ...s.needs, [need]: Math.min(100, s.needs[need] + amount) },
       };
     }),
+
+  /** Raise hygiene (bath house / soap). Target defaults to 'starter' or a pet id. */
+  addHygiene: (target, amount) =>
+    set((s) => {
+      const apply = (needs) => ({ ...needs, hygiene: Math.min(100, (needs.hygiene ?? 100) + amount) });
+      if (target === 'starter') return { needs: apply(s.needs) };
+      return { pets: s.pets.map((p) => (p.id === target ? { ...p, needs: apply(p.needs) } : p)) };
+    }),
+
+  /** Cure sickness with a medkit: restores hunger+hygiene to ≥50 and clears sick. */
+  curePet: (target) => {
+    const s = get();
+    if ((s.inventory.medkit ?? 0) < 1) return false;
+    const heal = (needs) => ({
+      ...needs,
+      hunger: Math.max(50, needs.hunger ?? 100),
+      hygiene: Math.max(50, needs.hygiene ?? 100),
+    });
+    if (target === 'starter') {
+      set({ inventory: { ...s.inventory, medkit: s.inventory.medkit - 1 }, needs: heal(s.needs), sick: false });
+      return true;
+    }
+    set({
+      inventory: { ...s.inventory, medkit: s.inventory.medkit - 1 },
+      pets: s.pets.map((p) => (p.id === target ? { ...p, needs: heal(p.needs), sick: false } : p)),
+    });
+    return true;
+  },
+
+  /** Bathe with soap: restores +40 hygiene. Clears sick since hygiene climbs back. */
+  bathePet: (target) => {
+    const s = get();
+    if ((s.inventory.soap ?? 0) < 1) return false;
+    const wash = (needs) => ({ ...needs, hygiene: Math.min(100, (needs.hygiene ?? 100) + 40) });
+    if (target === 'starter') {
+      set({ inventory: { ...s.inventory, soap: s.inventory.soap - 1 }, needs: wash(s.needs), sick: false });
+      return true;
+    }
+    set({
+      inventory: { ...s.inventory, soap: s.inventory.soap - 1 },
+      pets: s.pets.map((p) => (p.id === target ? { ...p, needs: wash(p.needs), sick: false } : p)),
+    });
+    return true;
+  },
 
   /**
    * Toggle whether the player is "holding" a resource (used to feed the
@@ -869,7 +915,7 @@ export const useGameStore = create(
       timeScale: 1,
       paused: false,
       currency: 10,
-      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0 },
+      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0 },
       playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 },
       playerDir: 0,
       playerTool: 'hoe',
