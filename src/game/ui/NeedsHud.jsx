@@ -5,15 +5,16 @@ import { RESOURCES } from '../data/resources';
 import SvgIcon from './SvgIcon';
 
 // Map need keys to icon names
-const NEED_ICONS = { hunger: 'farm', energy: 'time', happiness: 'heart' };
+const NEED_ICONS = { hunger: 'farm', energy: 'time', happiness: 'heart', hygiene: 'waterDrop' };
 const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
 // Map mood states to icon names
-const MOOD_ICONS = { happy: 'happy', content: 'neutral', hungry: 'hungry', tired: 'tired', sad: 'sad' };
+const MOOD_ICONS = { happy: 'happy', content: 'neutral', hungry: 'hungry', tired: 'tired', sad: 'sad', sick: 'sick' };
 
 const BARS = [
   { key: 'hunger', label: 'Hunger', color: '#ff9f43' },
   { key: 'energy', label: 'Energy', color: '#ffd166' },
   { key: 'happiness', label: 'Happiness', color: '#ff6b9d' },
+  { key: 'hygiene', label: 'Hygiene', color: '#a3c4ff' },
 ];
 
 /**
@@ -48,6 +49,14 @@ export default function NeedsHud() {
       ? Math.round(s.needs.happiness)
       : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.happiness ?? 100)
   );
+  const hygiene = useGameStore((s) =>
+    isStarter
+      ? Math.round(s.needs.hygiene)
+      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.hygiene ?? 100)
+  );
+  const sick = useGameStore((s) =>
+    isStarter ? s.sick : s.pets.find((p) => p.id === s.selectedPetId)?.sick ?? false
+  );
   const mood = useGameStore((s) => {
     const needs = isStarter
       ? s.needs
@@ -57,7 +66,7 @@ export default function NeedsHud() {
   const sleeping = useGameStore((s) =>
     isStarter ? s.sleeping : s.pets.find((p) => p.id === s.selectedPetId)?.sleeping ?? false
   );
-  const needs = { hunger, energy, happiness };
+  const needs = { hunger, energy, happiness, hygiene };
 
   // Selected pet's display name + emoji (for the header + selector chips)
   const petName = useGameStore((s) => {
@@ -77,19 +86,28 @@ export default function NeedsHud() {
   // selector only re-renders when a pet is added/renamed/evolves mood.
   const roster = useGameStore((s) => {
     const isNight = !timeOfDay(s.time, s.dayCycleSeconds).isDay;
-    const starterMood = s.sleeping ? 'sleep' : MOOD_ICONS[moodFromNeeds(s.needs, isNight)] || 'happy';
+    const starterMood = s.sleeping
+      ? 'sleep'
+      : s.sick
+        ? 'sick'
+        : MOOD_ICONS[moodFromNeeds(s.needs, isNight)] || 'happy';
     const starter = { id: 'starter', icon: 'egg', name: 'My pet', moodIcon: starterMood };
     const pets = s.pets.map((p) => {
-      const mood = p.sleeping ? 'sleep' : MOOD_ICONS[moodFromNeeds(p.needs, isNight)] || 'happy';
+      const mood = p.sleeping
+        ? 'sleep'
+        : p.sick
+          ? 'sick'
+          : MOOD_ICONS[moodFromNeeds(p.needs, isNight)] || 'happy';
       return { id: p.id, icon: 'egg', name: p.name, moodIcon: mood };
     });
     return JSON.stringify([starter, ...pets]);
   });
   const chips = JSON.parse(roster || '[]');
 
-   // While asleep the mood header shows the sleeping icon instead of mood.
-  const moodIcon = sleeping ? 'sleep' : MOOD_ICONS[mood];
-  const moodLabel = sleeping ? 'Sleeping' : MOODS[mood].label;
+   // While asleep the mood header shows the sleeping icon instead of mood;
+   // a sick pet shows a red pill instead of the mood label.
+  const moodIcon = sleeping ? 'sleep' : sick ? 'sick' : MOOD_ICONS[mood];
+  const moodLabel = sleeping ? 'Sleeping' : sick ? 'Sick — use a medkit!' : MOODS[mood].label;
 
   // Growth stage + progress — only the starter evolves; hatched pets have
   // no growth bar (they're full-grown friends).
@@ -125,6 +143,9 @@ export default function NeedsHud() {
         boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
         minWidth: 150,
         maxWidth: 210,
+        ...(sick
+          ? { border: '1px solid rgba(255,80,80,0.7)', boxShadow: '0 0 12px rgba(255,60,60,0.45)' }
+          : {}),
       }}
     >
        {runawayPets.length > 0 && (

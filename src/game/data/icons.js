@@ -42,6 +42,7 @@ export const ICONS = {
   neutral: '<svg viewBox="0 0 24 24" fill="#ffd93d"><circle cx="8" cy="9" r="1.5"/><circle cx="16" cy="9" r="1.5"/><path d="M9 16h6v1H9z"/></svg>',
   hungry: '<svg viewBox="0 0 24 24" fill="#ff9f43"><circle cx="8" cy="9" r="1.5"/><circle cx="16" cy="9" r="1.5"/><path d="M12 15c-1.8 0-3.2 1.3-3.5 3h7c-.3-1.7-1.7-3-3.5-3z"/><path d="M12 13l1.8-3.2a1 1 0 0 0-3.6 0z" fill="#fff"/></svg>',
   tired: '<svg viewBox="0 0 24 24" fill="#a3e4ff"><path d="M7 6l-2 3 2 3 2-3zM17 6l-2 3 2 3 2-3z" opacity="0.9"/><circle cx="8" cy="12" r="1.4"/><circle cx="16" cy="12" r="1.4"/><path d="M12 18.5a3.2 3.2 0 0 1-3-2h6a3.2 3.2 0 0 1-3 2z" opacity="0.5"/></svg>',
+  sick: '<svg viewBox="0 0 24 24" fill="#58c0ff"><circle cx="9" cy="11" r="1.5"/><circle cx="16" cy="11" r="1.5"/><path d="M8 16a4 4 0 0 1 8 0z" fill="#9fe8ff"/><path d="M4 4h5a3 3 0 0 0 6 0h5v2h-5a1 1 0 0 1-1-2h2l-2 6-2-6h2a5 5 0 0 1-5 0 3 3 0 0 1-3-3 1 1 0 0 1 1-1z" transform="translate(0 -1)"/></svg>',
   sad: '<svg viewBox="0 0 24 24" fill="#a3e4ff"><circle cx="8" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/><path d="M12 17c-2 0-3.5-1.5-3.5-3h7c0 1.5-1.5 3-3.5 3z"/></svg>',
   question: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-.5-4h1v-3h-1v3zm0-4h1v-2h-1v2z"/></svg>',
   warning: '<svg viewBox="0 0 24 24" fill="#ffd93d"><path d="M12 2l10 16H2L12 2zm0 6v4h1v4h-1v-4h1V8h-1zm0 6c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>',
