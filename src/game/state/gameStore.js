@@ -87,6 +87,7 @@ export const useGameStore = create(
     happiness: 100,
     hygiene: 100,
   },
+  sick: false,
 
   // ── Decorations ──
   // Every prop on the island (seeded scatter + player-planted) lives here,
@@ -938,11 +939,12 @@ export const useGameStore = create(
       paused: false,
       currency: 10,
       inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0 },
+      needs: { hunger: 100, energy: 100, happiness: 100, hygiene: 100 },
+      sick: false,
       playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 },
       playerDir: 0,
       playerTool: 'hoe',
       tools: { axe: 50, hoe: 50 },
-      needs: { hunger: 100, energy: 100, happiness: 100, hygiene: 100 },
       decorations: generateInitialDecorations(),
       plantedDecorations: [],
       removedScatterCells: [],
@@ -1063,6 +1065,7 @@ export const useGameStore = create(
           weather,
           plots: state.plots ?? [],
           needs,
+          sick: state.sick === undefined ? isSick(needs) : state.sick,
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
           ...(petBackfilled ? { pets } : {}),
