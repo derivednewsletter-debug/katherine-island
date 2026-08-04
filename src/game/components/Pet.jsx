@@ -5,6 +5,7 @@ import { Html } from '@react-three/drei';
 import { gridToWorld, worldToGrid, getTile, SPAWN_POINT } from '../data/mapData';
 import { findPath, getRandomWalkableTarget } from '../ai/pathfinding';
 import { useGameStore, moodFromNeeds, MOODS, timeOfDay, FEED_BY_RESOURCE } from '../state/gameStore';
+import { moodFromState } from '../state/petStates';
 import { PET_SPECIES, PET_HOME_ROAM_RADIUS } from '../data/species';
 import { TILE_THICKNESS } from './Tile';
 import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts } from './petParts';
@@ -89,8 +90,12 @@ export default function Pet({ petId }) {
   const name = useGameStore((s) => s.pets.find((p) => p.id === petId)?.name ?? '');
   const mood = useGameStore((s) => {
     const p = s.pets.find((x) => x.id === petId);
-    return p ? moodFromNeeds(p.needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay) : 'content';
+    if (!p) return 'content';
+    const stateMood = moodFromState(p.sick, p.ranAway);
+    if (stateMood) return stateMood;
+    return moodFromNeeds(p.needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay);
   });
+  const ranAway = useGameStore((s) => s.pets.find((p) => p.id === petId)?.ranAway ?? false);
   const sleeping = useGameStore((s) => s.pets.find((p) => p.id === petId)?.sleeping ?? false);
   const selected = useGameStore((s) => s.selectedPetId === petId);
 
@@ -243,6 +248,15 @@ export default function Pet({ petId }) {
     e.stopPropagation();
     const st = useGameStore.getState();
     st.selectPet(petId);
+
+    // A runaway pet is rescued on click — it comes home (reunion moment).
+    if (st.pets.find((p) => p.id === petId)?.ranAway) {
+      st.rescuePet(petId);
+      setBubble('home! 💗');
+      bubbleTimer.current = 1.5;
+      burstHearts();
+      return;
+    }
 
     if (st.pets.find((p) => p.id === petId)?.sleeping) {
       setBubble('shh… 💤');
@@ -538,7 +552,7 @@ export default function Pet({ petId }) {
           }}
         >
           <span style={{ fontSize: 12, lineHeight: 1, textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>
-            {sleeping ? '💤' : MOODS[mood].emoji}
+            {ranAway ? '💨' : sleeping ? '💤' : MOODS[mood]?.emoji ?? '🙂'}
           </span>
           {name && (
             <span

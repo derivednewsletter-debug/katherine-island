@@ -47,6 +47,15 @@ export const QUESTS = [
     target: 1,
     reward: { stone: 2 },
   },
+  {
+    id: 'pet:rescue',
+    emoji: '🐾',
+    title: 'Find My Pet',
+    desc: 'Rescue a runaway pet',
+    metric: 'pet:rescue',
+    target: 1,
+    reward: { coin: 8 },
+  },
 ];
 
 /** Find a quest definition by id. */

@@ -27,6 +27,8 @@ const BARS = [
 export default function NeedsHud() {
   const selectedPetId = useGameStore((s) => s.selectedPetId);
   const isStarter = selectedPetId === 'starter';
+  const selectPet = useGameStore((s) => s.selectPet);
+  const runawayPets = useGameStore((s) => s.pets.filter((p) => p.ranAway));
 
   // Subscribe to rounded values so the panel only re-renders when a
   // displayed number actually changes (the bars' CSS transition smooths
@@ -125,6 +127,31 @@ export default function NeedsHud() {
         maxWidth: 210,
       }}
     >
+       {runawayPets.length > 0 && (
+         <button
+           onClick={() => selectPet(runawayPets[0].id)}
+           title="Find and rescue your runaway pet"
+           style={{
+             display: 'flex',
+             alignItems: 'center',
+             gap: 6,
+             padding: '6px 10px',
+             borderRadius: 8,
+             border: '1px solid rgba(255,107,107,0.6)',
+             background: 'rgba(255,107,107,0.2)',
+             color: '#ffb3b3',
+             fontSize: 12,
+             fontWeight: 800,
+             fontFamily: 'inherit',
+             cursor: 'pointer',
+             pointerEvents: 'auto',
+             marginBottom: 2,
+             animation: 'pulse 1.6s infinite',
+           }}
+         >
+           🐾 Find {runawayPets.length} runaway pet{runawayPets.length > 1 ? 's' : ''}
+         </button>
+       )}
        <div
          style={{
            display: 'flex',

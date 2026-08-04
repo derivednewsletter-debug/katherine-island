@@ -677,6 +677,12 @@ export const useGameStore = create(
           tools: { ...s.tools, [toolKey]: (s.tools[toolKey] ?? 0) + 1 },
         };
       }
+      if (item.kind === 'item') {
+        return {
+          inventory: { ...newInv, [item.resource]: (newInv[item.resource] ?? 0) + (item.count ?? 1) },
+          currency: newCurrency,
+        };
+      }
       return { inventory: newInv, currency: newCurrency, upgrades: { ...s.upgrades, [itemId]: true } };
     }),
 
@@ -811,6 +817,22 @@ export const useGameStore = create(
           : p
       ),
     })),
+
+  /** Rescue a runaway pet: brings it home and advances the rescue quest. */
+  rescuePet: (id) =>
+    set((s) => {
+      const pet = s.pets.find((p) => p.id === id);
+      if (!pet || !pet.ranAway) return s;
+      return {
+        pets: s.pets.map((p) =>
+          p.id === id
+            ? { ...p, ranAway: false, lowHappySince: null, needs: { ...p.needs, happiness: 80 } }
+            : p
+        ),
+        quests: advanceQuests(s.quests, 'pet:rescue', 1),
+        toast: { id: (s.toast?.id ?? 0) + 1, text: `🐾 You found ${pet.name}! They're home safe.` },
+      };
+    }),
 
   /** Track an extra pet's cell (fires only on change — like setCreaturePos).
    *  Guarded so a same-cell update returns the same state instead of a new
