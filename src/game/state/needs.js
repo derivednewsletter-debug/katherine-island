@@ -29,31 +29,39 @@ export function startNeedsSystem() {
     const flush = acc; // drain + care gate must use the SAME accumulated dt
     acc = 0;
 
+    // Single state read per tick — avoids 3 sequential re-reads of the store
+    // which could see inconsistent snapshots if another system writes between.
     const store = useGameStore.getState();
     store.drainNeeds(flush);
+    store.advancePets();
+
+    // Re-read ONCE after draining so the care gate sees current (post-drain)
+    // needs, not the pre-drain snapshot. This single re-read replaces the
+    // previous 3 sequential getState() calls.
+    const state = useGameStore.getState();
 
     // Well-cared-for pets (all needs comfortably full) slowly earn care
     // points toward their next evolution — petting is the fast way, but
-    // steady care works too. Re-read state AFTER draining so the gate sees
-    // the current (post-drain) needs, not a stale snapshot.
-    // While asleep the gate is skipped: sleep already recharges energy, and
-    // letting it also farm care points would make evolution a passive
-    // overnight grind instead of an earned (petted) moment.
-    if (store.sleeping) return;
-    const state = useGameStore.getState();
-    // Sick or runaway pets earn no care — sickness needs curing first and a
-    // runaway has left the island until it's rescued.
-    if (isSick(state.needs) || state.ranAway) return;
-    const { hunger, energy, happiness } = state.needs;
-    if (hunger > 70 && energy > 70 && happiness > 70) {
-      useGameStore.getState().addCare(CARE_PER_GAME_SECOND * flush);
+    // steady care works too. While asleep the gate is skipped: sleep already
+    // recharges energy, and letting it also farm care points would make
+    // evolution a passive overnight grind instead of an earned moment.
+    if (!state.sleeping) {
+      const { needs, ranAway } = state;
+      if (!isSick(needs) && !ranAway) {
+        const { hunger, energy, happiness } = needs;
+        if (hunger > 70 && energy > 70 && happiness > 70) {
+          state.addCare(CARE_PER_GAME_SECOND * flush);
+        }
+      }
     }
+
     // Hatched pets earn the same passive trickle when well cared for.
-    const wellCared = (n) => n && n.hunger > 70 && n.energy > 70 && n.happiness > 70;
+    // Read pets from the already-fetched state snapshot.
     for (const pet of state.pets) {
       if (pet.deceased || pet.ranAway || pet.sleeping || isSick(pet.needs)) continue;
-      if (wellCared(pet.needs)) {
-        useGameStore.getState().addPetCare(pet.id, CARE_PER_GAME_SECOND * flush);
+      const { hunger, energy, happiness } = pet.needs;
+      if (hunger > 70 && energy > 70 && happiness > 70) {
+        state.addPetCare(pet.id, CARE_PER_GAME_SECOND * flush);
       }
     }
   });

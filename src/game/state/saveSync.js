@@ -142,7 +142,10 @@ export function startSaveSync() {
       state.ownedEggs !== prev.ownedEggs ||
       state.placedEggs !== prev.placedEggs ||
       state.pets !== prev.pets ||
+      state.memorials !== prev.memorials ||
       state.namingPetId !== prev.namingPetId ||
+      state.renamingPetId !== prev.renamingPetId ||
+      state.starterName !== prev.starterName ||
       state.selectedPetId !== prev.selectedPetId ||
       state.quests !== prev.quests ||
       state.crops !== prev.crops ||
@@ -214,7 +217,10 @@ export async function syncSaveFromCloud() {
     ownedEggs: state.ownedEggs ?? current.ownedEggs,
     placedEggs: state.placedEggs ?? current.placedEggs,
     pets: state.pets ?? current.pets,
+    memorials: state.memorials ?? current.memorials,
     namingPetId: state.namingPetId ?? current.namingPetId,
+    renamingPetId: state.renamingPetId ?? current.renamingPetId,
+    starterName: state.starterName ?? current.starterName,
     selectedPetId: state.selectedPetId ?? current.selectedPetId,
     quests: state.quests ?? current.quests,
     crops: state.crops ?? current.crops,

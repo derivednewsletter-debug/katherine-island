@@ -28,98 +28,83 @@ const BARS = [
 export default function NeedsHud() {
   const selectedPetId = useGameStore((s) => s.selectedPetId);
   const isStarter = selectedPetId === 'starter';
-  const selectPet = useGameStore((s) => s.selectPet);
-  const runawayPets = useGameStore((s) => s.pets.filter((p) => p.ranAway));
 
-  // Subscribe to rounded values so the panel only re-renders when a
-  // displayed number actually changes (the bars' CSS transition smooths
-  // the gaps). Mood is a string selector — also re-renders only on change.
-  const hunger = useGameStore((s) =>
-    isStarter
-      ? Math.round(s.needs.hunger)
-      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.hunger ?? 100)
-  );
-  const energy = useGameStore((s) =>
-    isStarter
-      ? Math.round(s.needs.energy)
-      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.energy ?? 100)
-  );
-  const happiness = useGameStore((s) =>
-    isStarter
-      ? Math.round(s.needs.happiness)
-      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.happiness ?? 100)
-  );
-  const hygiene = useGameStore((s) =>
-    isStarter
-      ? Math.round(s.needs.hygiene)
-      : Math.round(s.pets.find((p) => p.id === s.selectedPetId)?.needs.hygiene ?? 100)
-  );
-  const sick = useGameStore((s) =>
-    isStarter ? s.sick : s.pets.find((p) => p.id === s.selectedPetId)?.sick ?? false
-  );
-  const mood = useGameStore((s) => {
-    const needs = isStarter
-      ? s.needs
-      : s.pets.find((p) => p.id === s.selectedPetId)?.needs ?? s.needs;
-    return moodFromNeeds(needs, !timeOfDay(s.time, s.dayCycleSeconds).isDay);
+  // Single selector for the selected pet object — eliminates 8+ redundant .find() calls
+  const selectedPet = useGameStore((s) => {
+    if (isStarter) return null;
+    return s.pets.find((p) => p.id === s.selectedPetId) ?? null;
   });
-  const sleeping = useGameStore((s) =>
-    isStarter ? s.sleeping : s.pets.find((p) => p.id === s.selectedPetId)?.sleeping ?? false
-  );
+  const selectedPetExists = isStarter || Boolean(selectedPet);
+  const memorialChip = useGameStore((s) => s.memorials.find((m) => m.petId === s.selectedPetId) ?? s.memorials[s.memorials.length - 1]);
+
+  // Derived values from the single pet lookup (or starter state)
+  const hunger = Math.round(isStarter ? useGameStore.getState().needs.hunger : (selectedPet?.needs?.hunger ?? 100));
+  const energy = Math.round(isStarter ? useGameStore.getState().needs.energy : (selectedPet?.needs?.energy ?? 100));
+  const happiness = Math.round(isStarter ? useGameStore.getState().needs.happiness : (selectedPet?.needs?.happiness ?? 100));
+  const hygiene = Math.round(isStarter ? useGameStore.getState().needs.hygiene : (selectedPet?.needs?.hygiene ?? 100));
+  const sick = isStarter ? useGameStore.getState().sick : (selectedPet?.sick ?? false);
+  const deceased = isStarter ? false : (selectedPet?.deceased ?? false);
+  const sleeping = isStarter ? useGameStore.getState().sleeping : (selectedPet?.sleeping ?? false);
+  const stage = isStarter ? useGameStore.getState().stage : (selectedPet?.stage ?? null);
+  const carePoints = isStarter ? Math.floor(useGameStore.getState().carePoints) : Math.floor(selectedPet?.carePoints ?? 0);
+
+  // Subscribe to frequently-changing values that can't be read from getState
+  const runawayPets = useGameStore((s) => s.pets.filter((p) => p.ranAway));
+  const memorials = useGameStore((s) => s.memorials);
+  const openRename = useGameStore((s) => s.openRename);
+  const followingPetId = useGameStore((s) => s.followingPetId);
+  const toyCount = useGameStore((s) => s.inventory.toy ?? 0);
+  const soapCount = useGameStore((s) => s.inventory.soap ?? 0);
+  const selectPet = useGameStore((s) => s.selectPet);
+
+  // Starter needs for mood calculation — subscribe to full object only for starter
+  const starterNeeds = useGameStore((s) => isStarter ? s.needs : null);
+  const starterSleeping = useGameStore((s) => isStarter ? s.sleeping : null);
+
+  const isNight = !timeOfDay(useGameStore.getState().time, useGameStore.getState().dayCycleSeconds).isDay;
+
+  const mood = isStarter
+    ? moodFromNeeds(starterNeeds, isNight)
+    : moodFromNeeds(selectedPet?.needs ?? { hunger: 100, energy: 100, happiness: 100 }, isNight);
+
   const needs = { hunger, energy, happiness, hygiene };
 
-  // Selected pet's display name + emoji (for the header + selector chips)
-  const petName = useGameStore((s) => {
-    if (isStarter) return 'My pet';
-    const p = s.pets.find((x) => x.id === s.selectedPetId);
-    return p?.name ?? 'Pet';
-  });
-  const petSpecies = useGameStore((s) => {
-    if (isStarter) return null;
-    const p = s.pets.find((x) => x.id === s.selectedPetId);
-    return p?.species;
-  });
+  // Pet name + species
+  const petName = isStarter ? useGameStore.getState().starterName : (selectedPet?.name ?? 'Pet');
+  const petSpecies = isStarter ? null : selectedPet?.species;
 
-  // Pet roster for the selector chips: [{ id, icon, name, moodIcon }] for
-  // starter + every hatched pet, where each chip carries ITS OWN current
-  // mood (not the selected pet's). Serialized to a stable string so the
-  // selector only re-renders when a pet is added/renamed/evolves mood.
+  // Pet roster for selector chips
   const roster = useGameStore((s) => {
-    const isNight = !timeOfDay(s.time, s.dayCycleSeconds).isDay;
+    const isNightR = !timeOfDay(s.time, s.dayCycleSeconds).isDay;
     const starterMood = s.sleeping
       ? 'sleep'
       : s.sick
         ? 'sick'
-        : MOOD_ICONS[moodFromNeeds(s.needs, isNight)] || 'happy';
-    const starter = { id: 'starter', icon: 'egg', name: 'My pet', moodIcon: starterMood };
+        : MOOD_ICONS[moodFromNeeds(s.needs, isNightR)] || 'happy';
+    const starter = { id: 'starter', icon: 'egg', name: s.starterName ?? 'My pet', moodIcon: starterMood };
     const pets = s.pets.map((p) => {
-      const mood = p.sleeping
+      const m = p.sleeping
         ? 'sleep'
-        : p.sick
-          ? 'sick'
-          : MOOD_ICONS[moodFromNeeds(p.needs, isNight)] || 'happy';
-      return { id: p.id, icon: 'egg', name: p.name, moodIcon: mood };
+        : p.ranAway
+          ? 'question'
+          : p.sick
+            ? 'sick'
+            : MOOD_ICONS[moodFromNeeds(p.needs, isNightR)] || 'happy';
+      return { id: p.id, icon: 'egg', name: p.name, moodIcon: m };
     });
     return JSON.stringify([starter, ...pets]);
   });
   const chips = JSON.parse(roster || '[]');
 
-   // While asleep the mood header shows the sleeping icon instead of mood;
-   // a sick pet shows a red pill instead of the mood label.
-  const moodIcon = sleeping ? 'sleep' : sick ? 'sick' : MOOD_ICONS[mood];
-  const moodLabel = sleeping ? 'Sleeping' : sick ? 'Sick — use a medkit!' : MOODS[mood].label;
+  // While asleep the mood header shows the sleeping icon instead of mood;
+  // a sick pet shows a red pill instead of the mood label.
+  const moodIcon = selectedPet?.ranAway ? 'question' : sleeping ? 'sleep' : sick ? 'sick' : MOOD_ICONS[mood];
+  const moodLabel = !selectedPetExists ? 'Choose a pet' : selectedPet?.ranAway ? 'Runaway — find me!' : sleeping ? 'Sleeping' : sick ? 'Sick — use a medkit!' : MOODS[mood].label;
 
-  // Growth stage + progress — shown for the starter and every hatched pet.
-  const stage = useGameStore((s) =>
-    isStarter ? s.stage : s.pets.find((p) => p.id === s.selectedPetId)?.stage ?? null
-  );
-  const carePoints = useGameStore((s) =>
-    isStarter ? Math.floor(s.carePoints) : Math.floor(s.pets.find((p) => p.id === s.selectedPetId)?.carePoints ?? 0)
-  );
+  // Growth stage + progress
   const growth = stage ? growthInfo(stage, carePoints) : null;
 
-  // Feedable treats: whichever resource is held wins; otherwise default to
-  // berries when any are available.
+  // Feedable treats
   const holding = useGameStore((s) => s.holding);
   const berries = useGameStore((s) => s.inventory.berry);
   const heldFeedable = holding && FEED_BY_RESOURCE[holding] ? holding : null;
@@ -315,10 +300,26 @@ export default function NeedsHud() {
         </div>
       )}
 
+      {memorialChip && (
+        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 8, background: 'rgba(212,212,212,0.12)', color: '#d4d4d4', fontSize: 11, textAlign: 'center' }}>🕊️ {memorialChip.name} — in loving memory</div>
+      )}
+
+      <div style={{ display: 'flex', gap: 5, marginTop: 6 }}>
+        <button onClick={() => openRename(selectedPetId)} disabled={!selectedPetExists} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: '1px solid rgba(255,209,102,0.45)', background: 'rgba(255,209,102,0.13)', color: '#ffe7a3', cursor: selectedPetExists ? 'pointer' : 'not-allowed', fontSize: 11, fontWeight: 800 }}>✎ Rename</button>
+        <button onClick={() => useGameStore.getState().toggleFollow(selectedPetId)} disabled={!selectedPetExists || sick || deceased} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: '1px solid rgba(126,232,250,0.4)', background: followingPetId === selectedPetId ? 'rgba(126,232,250,0.28)' : 'rgba(255,255,255,0.08)', color: '#d9fbff', cursor: !selectedPetExists || sick || deceased ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 800 }}>🚶 {followingPetId === selectedPetId ? 'Following' : 'Walk'}</button>
+        <button onClick={() => {
+          const st = useGameStore.getState();
+          const row = st.playerPos.row + Math.round(Math.sin(st.playerDir) * 3);
+          const col = st.playerPos.col + Math.round(Math.cos(st.playerDir) * 3);
+          st.throwToy(selectedPetId, row, col);
+        }} disabled={!selectedPetExists || !toyCount || sick || deceased} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: '1px solid rgba(255,158,107,0.45)', background: 'rgba(255,158,107,0.14)', color: '#ffd6b8', cursor: !selectedPetExists || !toyCount || sick || deceased ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 800 }}>🎾 Play</button>
+        <button onClick={() => useGameStore.getState().toggleHolding('soap')} disabled={!selectedPetExists || !soapCount || deceased} style={{ flex: 1, padding: '6px 4px', borderRadius: 8, border: '1px solid rgba(201,169,255,0.45)', background: 'rgba(201,169,255,0.14)', color: '#eee0ff', cursor: !selectedPetExists || !soapCount || deceased ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 800 }}>🧼 Bathe</button>
+      </div>
+
       {/* Feed the selected pet a treat (fast path; holding a chip works too) */}
       <button
         onClick={feed}
-        disabled={!feedResource}
+        disabled={!selectedPetExists || !feedResource}
          style={{
            display: 'flex',
            alignItems: 'center',

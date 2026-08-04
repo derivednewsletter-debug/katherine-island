@@ -6,12 +6,12 @@ import SvgIcon from './SvgIcon';
 
 // Gather + crop-harvest resources. Berry/fruit/herb/flower are feedable
 // treats (click to hold, then click the pet); shell/stone are plain.
-const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood', 'soap', 'medkit'];
+const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood', 'soap', 'medkit', 'toy', 'stew', 'grilled'];
 const FEEDABLE = Object.keys(FEED_BY_RESOURCE);
 // Hold-to-use care items (soap/medkit) — click the pet to apply them.
 const CAREABLE = ['soap', 'medkit'];
-const HOLDABLE = [...FEEDABLE, ...CAREABLE];
-const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood', soap: 'soap', medkit: 'medkit' };
+const HOLDABLE = [...FEEDABLE, ...CAREABLE, 'toy'];
+const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood', soap: 'soap', medkit: 'medkit', toy: 'toy', stew: 'stew', grilled: 'grilled' };
 
 /**
  * Inventory HUD — reads the shared store and shows a glass chip per
@@ -70,8 +70,10 @@ export default function InventoryHud() {
         const config = RESOURCES[resource];
         const isFeedable = FEEDABLE.includes(resource);
         const isCare = CAREABLE.includes(resource);
+        const isToy = resource === 'toy';
+        const isHoldable = isFeedable || isCare || isToy;
         const isHeld = holding === resource;
-        const empty = (isFeedable || isCare) && (inventory[resource] ?? 0) < 1;
+        const empty = isHoldable && (inventory[resource] ?? 0) < 1;
         const chipStyle = {
           display: 'flex',
           alignItems: 'center',
@@ -97,17 +99,17 @@ export default function InventoryHud() {
             </span>
           </>
         );
-        // Feedable treats (berry/fruit/herb/flower) and care items
-        // (soap/medkit) are hold-to-use buttons; shell/stone stay plain.
-        return isFeedable || isCare ? (
+        // Feedable treats (berry/fruit/herb/flower), care items (soap/medkit),
+        // and toys are hold-to-use buttons; shell/stone stay plain.
+        return isHoldable ? (
           <button
             key={resource}
             onClick={() => useGameStore.getState().toggleHolding(resource)}
             disabled={empty}
             title={
               isHeld
-                ? `Click the pet to use it! ${config.label}`
-                : `Hold ${config.label.toLowerCase()} to use on the pet`
+                ? (isToy ? `Click a tile to throw!` : `Click the pet to use it! ${config.label}`)
+                : (isToy ? `Hold toy to play fetch` : `Hold ${config.label.toLowerCase()} to use on the pet`)
             }
             style={{
               ...chipStyle,
@@ -233,7 +235,7 @@ export default function InventoryHud() {
           }}
         >
           <SvgIcon name={ICON_MAP[holding] || 'berry'} size={14} />
-          {CAREABLE.includes(holding) ? 'Click the pet to use it!' : 'Click the pet to feed it!'}
+          {CAREABLE.includes(holding) ? 'Click the pet to use it!' : holding === 'toy' ? 'Click a tile to throw!' : 'Click the pet to feed it!'}
         </div>
       )}
     </div>

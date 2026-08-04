@@ -25,8 +25,13 @@ export const ICONS = {
   // Pet care items
   soap: '<svg viewBox="0 0 24 24" fill="#c9a9ff"><rect x="6" y="9" width="12" height="11" rx="3" fill="#c9a9ff" stroke="#a985e0" strokeWidth="1"/><path d="M8 9V6a4 4 0 0 1 8 0v3" fill="none" stroke="#a985e0" strokeWidth="1.5"/><circle cx="10" cy="13" r="1" fill="#e6d9ff"/><circle cx="14" cy="15" r="1.2" fill="#e6d9ff"/><circle cx="12" cy="17" r="0.8" fill="#e6d9ff"/></svg>',
   medkit: '<svg viewBox="0 0 24 24" fill="#ff7b7b"><rect x="5" y="6" width="14" height="14" rx="2" fill="#ff7b7b" stroke="#e05656" strokeWidth="1"/><rect x="9" y="2" width="6" height="5" rx="1" fill="#ff9b9b"/><path d="M12 9v6M9 12h6" stroke="#fff" strokeWidth="2"/></svg>',
+  toy: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#ff9e6b" stroke="#f7d36a" strokeWidth="2"/><path d="M7 7l10 10M17 7L7 17" stroke="#fff" strokeWidth="1.5" opacity=".8"/></svg>',
+  stew: '<svg viewBox="0 0 24 24"><path d="M5 11h14v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" fill="#f0b27a" stroke="#8d6b4b"/><path d="M7 10c0-3 2-5 5-5s5 2 5 5" fill="none" stroke="#f5e0b5" strokeWidth="2"/><path d="M9 4c-.7-1 .5-2 0-3m4 3c-.7-1 .5-2 0-3m4 3c-.7-1 .5-2 0-3" fill="none" stroke="#fff" strokeWidth="1"/></svg>',
+  grilled: '<svg viewBox="0 0 24 24"><path d="M5 8h14l-2 11H7z" fill="#c98a4b" stroke="#5d6d7e"/><path d="M7 11h10M7 14h10M8 17h8" stroke="#5d6d7e" strokeWidth="1.5"/><path d="M8 5c0-2 2-2 2 0m4 0c0-2 2-2 2 0" fill="none" stroke="#ff9e6b" strokeWidth="1.5"/></svg>',
 
   // UI
+  stove: '<svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="12" rx="1" fill="#f0b27a" stroke="#8d6b4b"/><circle cx="9" cy="6" r="2" fill="#5d6d7e"/><circle cx="15" cy="6" r="2" fill="#5d6d7e"/><path d="M8 12h8M8 16h8" stroke="#fff" strokeWidth="1.5"/></svg>',
+  grill: '<svg viewBox="0 0 24 24"><path d="M5 8h14l-2 10H7z" fill="#5d6d7e" stroke="#293747"/><path d="M7 11h10M7 14h10" stroke="#f0b27a" strokeWidth="1.5"/><path d="M8 18v3m8-3v3" stroke="#293747" strokeWidth="2"/></svg>',
   shop: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M3 3h18v2H3zM5 7h14l-1 12H6l-1-12zm3 3v7h1v-7zm3 0v7h1v-7zm3 0v7h1v-7z"/></svg>',
   inventory: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M4 4h16v2H4zm2 4h12l-1 12H7l-1-12zm2 2v9h1v-9zm3 0v9h1v-9zm3 0v9h1v-9z"/></svg>',
   farm: '<svg viewBox="0 0 24 24" fill="#4ade80"><path d="M3 13h2v6H3zm4 0h2v6H7zm4 0h2v6h-2zm6-8v8h2v-8h-2z"/></svg>',

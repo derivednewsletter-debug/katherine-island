@@ -6,6 +6,7 @@
  * sustained low happiness: after a grace window of game-time the pet runs
  * away (recoverable via a find-my-pet quest).
  */
+
 export const SICK_HUNGER = 25;
 export const SICK_HYGIENE = 25;
 export const RUN_AWAY_HAPPINESS = 15;
@@ -33,4 +34,25 @@ export function trackRunaway(pet, time) {
   }
   if (!low && pet.lowHappySince != null) return { ...pet, lowHappySince: null };
   return pet;
+}
+
+/** How many game-days an elder lives after reaching elder. */
+export const ELDER_LIFESPAN_DAYS = 14;
+
+/** Track a pet's age in game-days and trigger elder death once it surpasses
+ *  the elder lifespan. Elders beyond the lifespan are marked deceased so the
+ *  store's death handler can fire once. */
+export function trackAging(pet, day) {
+  const ageDays = pet.ageDays ?? 0;
+  const bornDay = pet.bornDay ?? null;
+  const nextDay = bornDay == null ? Math.max(ageDays, day) : Math.max(ageDays, day - bornDay);
+  if (pet.deceased) return { ...pet, ageDays: nextDay, deceased: pet.deceased };
+  if (pet.stage === 'elder') {
+    const elderSince = pet.elderSince ?? day;
+    if (day - elderSince >= ELDER_LIFESPAN_DAYS) {
+      return { ...pet, ageDays: nextDay, bornDay, elderSince, deceased: true };
+    }
+    return { ...pet, ageDays: nextDay, bornDay, elderSince, deceased: false };
+  }
+  return { ...pet, ageDays: nextDay, bornDay, deceased: false };
 }

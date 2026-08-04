@@ -24,7 +24,11 @@ export const DECORATION_TYPES = {
   flower: { label: 'Flower', color: '#ff9eb0' },
   fountain: { label: 'Fountain', color: '#5fc3e8' },
   lantern: { label: 'Lantern', color: '#ffcf6e' },
+  stove: { label: 'Stove', color: '#f0b27a' },
+  grill: { label: 'Grill', color: '#5d6d7e' },
   erase: { label: 'Eraser', color: '#f87171' },
+  // Memorial — for deceased pets (not in build palette, only rendered from state)
+  memorial: { label: 'Memorial', color: '#d4d4d4' },
   // Scatter-only (not in build palette): jungle undergrowth + big canopy trees
   bush: { label: 'Bush', color: '#3a8c5a' },
   tree: { label: 'Big Tree', color: '#2f7d3f' },

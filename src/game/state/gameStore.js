@@ -25,7 +25,8 @@ import { PET_SPECIES, EGG_HATCH_MS, pickPetHome } from '../data/species';
 import { questById, freshQuests, questIndexByMetric } from '../data/quests';
 import { cropById, cropStageIndex, DAY_CYCLE_SECONDS as CYCLE_SECONDS } from '../data/crops';
 import { RESOURCES } from '../data/resources';
-import { isSick, trackRunaway, SICK_DRAIN_MULT } from './petStates';
+import { RECIPES, RECIPE_COST, canCraft, recipeById } from '../data/recipes';
+import { isSick, trackRunaway, trackAging, SICK_DRAIN_MULT } from './petStates';
 
 /** Seconds of game time per full day-night cycle. The value lives in
  *  data/crops.js (night-only crop growth counts phases against it) and is
@@ -70,6 +71,9 @@ export const useGameStore = create(
     herb: 0,
     soap: 0,
     medkit: 0,
+    toy: 0,
+    stew: 0,
+    grilled: 0,
   },
 
   // ── Player (avatar controlled by the player with WASD) ──
@@ -135,8 +139,14 @@ export const useGameStore = create(
   ownedEggs: [], // [{ id, species }] bought but not yet placed
   placedEggs: [], // [{ id, species, row, col, x, z, y, plantedAt }] incubating
   pets: [], // [{ id, species, name, pos, needs, sleeping }] hatched pets
+  memorials: [], // [{ id, petId, species, name, row, col, x, z, y }] deceased pets' memorials
   namingPetId: null, // pet awaiting a name at the hatch moment
+  renamingPetId: null, // existing pet awaiting a rename
+  starterName: 'My pet',
   selectedPetId: 'starter', // 'starter' | a pets[].id — whose needs the HUD shows
+  activeAppliance: null, // transient { id, row, col, kind } kitchen panel target
+  followingPetId: null, // transient pet id following the player
+  fetchTarget: null, // transient starter fetch target
 
   // ── Quest board ──
   // Simple goals that reward the gather/care loop. Progress is advanced by
@@ -292,69 +302,36 @@ export const useGameStore = create(
    */
   drainNeeds: (gameDt) =>
     set((s) => {
-      // Comfy Nest slows all need drain by 25%
       const rate = s.upgrades.comfyNest ? 0.75 : 1;
-      // Reuse timeOfDay (same module) so the day/night split can never
-      // drift from the HUD and the sky — 0.2–0.75 counts as daylight.
       const { isDay } = timeOfDay(s.time, s.dayCycleSeconds);
-
-      // Sickness drains every relevant need faster; it never forces sleep,
-      // so energy behaves normally (recharges while sleeping, drains awake).
       const sick = isSick(s.needs);
-      const mult = sick ? SICK_DRAIN_MULT : 1;
 
-      const starterNeeds = s.sleeping
-        ? {
-            hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * 0.2 * mult * rate * gameDt),
-            energy: Math.min(100, s.needs.energy + SLEEP_RECHARGE * gameDt),
-            happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * 0.2 * mult * rate * gameDt),
-            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * mult * rate * gameDt),
-          }
-        : {
-            hunger: Math.max(
-              0,
-              s.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * mult * rate * gameDt
-            ),
-            energy: Math.max(
-              0,
-              s.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
-            ),
-            happiness: Math.max(
-              0,
-              s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * mult * rate * gameDt
-            ),
-            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * mult * rate * gameDt),
+      // Shared drain logic — eliminates the 2× duplication between starter and hatched pets.
+      const drain = (needs, sleeping, isSickNow) => {
+        const mult = isSickNow ? SICK_DRAIN_MULT : 1;
+        if (sleeping) {
+          return {
+            hunger: Math.max(0, needs.hunger - NEED_DRAIN.hunger * 0.2 * mult * rate * gameDt),
+            energy: Math.min(100, needs.energy + SLEEP_RECHARGE * gameDt),
+            happiness: Math.max(0, needs.happiness - NEED_DRAIN.happiness * 0.2 * mult * rate * gameDt),
+            hygiene: Math.max(0, needs.hygiene - NEED_DRAIN.hygiene * 0.2 * mult * rate * gameDt),
           };
+        }
+        return {
+          hunger: Math.max(0, needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * mult * rate * gameDt),
+          energy: Math.max(0, needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt),
+          happiness: Math.max(0, needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * mult * rate * gameDt),
+          hygiene: Math.max(0, needs.hygiene - NEED_DRAIN.hygiene * mult * rate * gameDt),
+        };
+      };
 
-      // Drain every hatched pet by the same day-aware rules, flag sickness
-      // and track the runaway grace window here each tick.
+      const starterNeeds = drain(s.needs, s.sleeping, sick);
+
+      // Drain every hatched pet by the same rules, track runaway grace window.
       const pets = s.pets.map((p) => {
         const pSick = isSick(p.needs);
-        const pMult = pSick ? SICK_DRAIN_MULT : 1;
-        const needs = p.sleeping
-          ? {
-              hunger: Math.max(0, p.needs.hunger - NEED_DRAIN.hunger * 0.2 * pMult * rate * gameDt),
-              energy: Math.min(100, p.needs.energy + SLEEP_RECHARGE * gameDt),
-              happiness: Math.max(0, p.needs.happiness - NEED_DRAIN.happiness * 0.2 * pMult * rate * gameDt),
-              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * pMult * rate * gameDt),
-            }
-          : {
-              hunger: Math.max(
-                0,
-                p.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * pMult * rate * gameDt
-              ),
-              energy: Math.max(
-                0,
-                p.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
-              ),
-              happiness: Math.max(
-                0,
-                p.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * pMult * rate * gameDt
-              ),
-              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * pMult * rate * gameDt),
-            };
-        const next = { ...p, needs, sick: pSick };
-        return trackRunaway(next, s.time);
+        const needs = drain(p.needs, p.sleeping, pSick);
+        return trackRunaway({ ...p, needs, sick: pSick }, s.time);
       });
 
       return { needs: starterNeeds, sick, pets };
@@ -375,8 +352,9 @@ export const useGameStore = create(
   /** Raise hygiene (bath house / soap). Target defaults to 'starter' or a pet id. */
   addHygiene: (target, amount) =>
     set((s) => {
-      const apply = (needs) => ({ ...needs, hygiene: Math.min(100, (needs.hygiene ?? 100) + amount) });
+      const apply = (needs = {}) => ({ ...needs, hygiene: Math.min(100, (needs.hygiene ?? 100) + amount) });
       if (target === 'starter') return { needs: apply(s.needs) };
+      if (!s.pets.some((p) => p.id === target)) return s;
       return { pets: s.pets.map((p) => (p.id === target ? { ...p, needs: apply(p.needs) } : p)) };
     }),
 
@@ -384,9 +362,10 @@ export const useGameStore = create(
   curePet: (target) => {
     const s = get();
     if ((s.inventory.medkit ?? 0) < 1) return false;
-    const heal = (needs) => ({
-      ...needs,
+    const heal = (needs = {}) => ({
       hunger: Math.max(50, needs.hunger ?? 100),
+      energy: needs.energy ?? 100,
+      happiness: needs.happiness ?? 100,
       hygiene: Math.max(50, needs.hygiene ?? 100),
     });
     if (target === 'starter') {
@@ -404,7 +383,12 @@ export const useGameStore = create(
   bathePet: (target) => {
     const s = get();
     if ((s.inventory.soap ?? 0) < 1) return false;
-    const wash = (needs) => ({ ...needs, hygiene: Math.min(100, (needs.hygiene ?? 100) + 40) });
+    const wash = (needs = {}) => ({
+      hunger: needs.hunger ?? 100,
+      energy: needs.energy ?? 100,
+      happiness: needs.happiness ?? 100,
+      hygiene: Math.min(100, (needs.hygiene ?? 100) + 40),
+    });
     if (target === 'starter') {
       set({ inventory: { ...s.inventory, soap: s.inventory.soap - 1 }, needs: wash(s.needs), sick: false });
       return true;
@@ -709,13 +693,86 @@ export const useGameStore = create(
         if (p.id !== id) return p;
         const current = GROWTH[p.stage];
         if (!current || !current.next) return p;
-        const carePoints = p.carePoints + amount;
+        const carePoints = (p.carePoints ?? 0) + amount;
         if (carePoints >= current.next.required) {
           return { ...p, carePoints: 0, stage: current.next.id };
         }
         return { ...p, carePoints };
       }),
     })),
+
+  /**
+   * Advance every pet's lifecycle: runaway tracking + aging on the game
+   * clock. Newly-deceased elders trigger the death handler (memorial + egg).
+   */
+  advancePets: () => {
+    const day = timeOfDay(get().time, get().dayCycleSeconds).day;
+    const died = [];
+    const pets = get().pets.map((p) => {
+      const aged = trackAging(trackRunaway(p, get().time), day);
+      if (!p.deceased && aged.deceased) died.push(aged.id);
+      return aged;
+    });
+    if (died.length > 0) {
+      set({ pets });
+      for (const id of died) get().recordDeath(id);
+      return;
+    }
+    const currentPets = get().pets;
+    if (pets.some((pet, index) => pet !== currentPets[index])) set({ pets });
+  },
+
+  /** Select an appliance to open its transient cooking panel. */
+  setActiveAppliance: (appliance) => set({ activeAppliance: appliance }),
+
+  /** Craft a meal at the currently selected appliance. */
+  craftMeal: (recipeId) => {
+    const s = get();
+    const appliance = s.activeAppliance;
+    const recipe = recipeById(recipeId);
+    if (!appliance || !recipe || appliance.kind !== recipe.appliance || !canCraft(s.inventory, recipeId)) return false;
+    const next = { ...s.inventory };
+    for (const [resource, amount] of Object.entries(RECIPE_COST[recipe.appliance] ?? {})) next[resource] = (next[resource] ?? 0) - amount;
+    for (const [resource, amount] of Object.entries(recipe.inputs)) next[resource] = (next[resource] ?? 0) - amount;
+    for (const [resource, amount] of Object.entries(recipe.output)) next[resource] = (next[resource] ?? 0) + amount;
+    set({ inventory: next, toast: { id: (s.toast?.id ?? 0) + 1, text: `${recipe.emoji} Cooked ${recipe.name}!` } });
+    return true;
+  },
+
+  /** Start a fetch run for a pet; the movement component completes it. */
+  throwToy: (petId, row, col) => {
+    const s = get();
+    const tile = getTile(row, col);
+    if ((s.inventory.toy ?? 0) < 1 || !tile || !isWalkable(tile)) return false;
+    const target = { row, col };
+    if (petId === 'starter') {
+      set({ inventory: { ...s.inventory, toy: s.inventory.toy - 1 }, fetchTarget: target });
+    } else if (s.pets.some((p) => p.id === petId && !p.ranAway && !p.deceased)) {
+      set({ inventory: { ...s.inventory, toy: s.inventory.toy - 1 }, pets: s.pets.map((p) => p.id === petId ? { ...p, fetchTarget: target } : p) });
+    } else return false;
+    return true;
+  },
+
+  /** Finish fetch, reward happiness and one care point. */
+  fetchReturned: (petId) => {
+    const s = get();
+    if (petId === 'starter') {
+      set({ fetchTarget: null, needs: { ...s.needs, happiness: Math.min(100, s.needs.happiness + 12) }, toast: { id: (s.toast?.id ?? 0) + 1, text: '🎾 Fetch complete! +happiness' } });
+      get().addCare(1);
+      return;
+    }
+    if (!s.pets.some((p) => p.id === petId)) return;
+    set({ pets: s.pets.map((p) => p.id === petId ? { ...p, fetchTarget: null, needs: { ...p.needs, happiness: Math.min(100, p.needs.happiness + 12) } } : p), toast: { id: (s.toast?.id ?? 0) + 1, text: '🎾 Fetch complete! +happiness' } });
+    get().addPetCare(petId, 1);
+  },
+
+  toggleFollow: (id) => set((s) => ({ followingPetId: s.followingPetId === id ? null : id })),
+  stopFollow: () => set({ followingPetId: null }),
+  followHeart: (id) => {
+    const s = get();
+    if (id === 'starter') set({ needs: { ...s.needs, happiness: Math.min(100, s.needs.happiness + 2) } });
+    else set({ pets: s.pets.map((p) => p.id === id ? { ...p, needs: { ...p.needs, happiness: Math.min(100, p.needs.happiness + 2) } } : p) });
+  },
 
   // ── Build mode ──
   /** Enter build mode with a tool, or exit if it's already active. */
@@ -802,12 +859,28 @@ export const useGameStore = create(
             stage: 'baby',
             carePoints: 0,
             ageDays: 0,
+            bornDay: timeOfDay(s.time, s.dayCycleSeconds).day,
             elderSince: null,
             deceased: false,
           },
         ],
         namingPetId: petId,
         selectedPetId: petId,
+      };
+    }),
+
+  /** Open the shared naming modal for an existing pet. */
+  openRename: (id) => set({ renamingPetId: id }),
+
+  /** Rename an existing pet or the starter, then close the modal. */
+  renamePet: (name) =>
+    set((s) => {
+      if (!s.renamingPetId) return s;
+      const clean = (name || '').trim();
+      if (s.renamingPetId === 'starter') return { starterName: clean || 'My pet', renamingPetId: null };
+      return {
+        pets: s.pets.map((p) => p.id === s.renamingPetId ? { ...p, name: clean || PET_SPECIES[p.species]?.label || 'Pet' } : p),
+        renamingPetId: null,
       };
     }),
 
@@ -852,6 +925,35 @@ export const useGameStore = create(
         ),
         quests: advanceQuests(s.quests, 'pet:rescue', 1),
         toast: { id: (s.toast?.id ?? 0) + 1, text: `🐾 You found ${pet.name}! They're home safe.` },
+      };
+    }),
+
+  /** Record a deceased pet's death: spawn a memorial at its home anchor and grant a fresh egg. */
+  recordDeath: (id) =>
+    set((s) => {
+      const pet = s.pets.find((p) => p.id === id);
+      if (!pet || !pet.deceased) return s;
+      if (s.memorials.some((m) => m.petId === id)) return s;
+      const home = pet.home ?? pet.pos ?? { row: SPAWN_POINT.row, col: SPAWN_POINT.col };
+      const { x, z } = gridToWorld(home.row, home.col);
+      const tile = getTile(home.row, home.col);
+      const memorial = {
+        id: `mem-${id}`,
+        petId: id,
+        species: pet.species,
+        name: pet.name ?? PET_SPECIES[pet.species]?.label ?? 'Pet',
+        row: home.row,
+        col: home.col,
+        x,
+        z,
+        y: tile.height + TILE_THICKNESS,
+      };
+      return {
+        pets: s.pets.filter((p) => p.id !== id),
+        selectedPetId: s.selectedPetId === id ? 'starter' : s.selectedPetId,
+        memorials: [...s.memorials, memorial],
+        ownedEggs: [...s.ownedEggs, { id: uid(), species: pet.species }],
+        toast: { id: (s.toast?.id ?? 0) + 1, text: `🕊️ ${memorial.name} passed on. A fresh egg waits.` },
       };
     }),
 
@@ -958,7 +1060,7 @@ export const useGameStore = create(
       timeScale: 1,
       paused: false,
       currency: 10,
-      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0 },
+      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0, toy: 0, stew: 0, grilled: 0 },
       needs: { hunger: 100, energy: 100, happiness: 100, hygiene: 100 },
       sick: false,
       playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 },
@@ -976,8 +1078,14 @@ export const useGameStore = create(
       ownedEggs: [],
       placedEggs: [],
       pets: [],
+      memorials: [],
       namingPetId: null,
+      renamingPetId: null,
+      starterName: 'My pet',
       selectedPetId: 'starter',
+      activeAppliance: null,
+      followingPetId: null,
+      fetchTarget: null,
       shopOpen: false,
       holding: null,
       placement: { active: false, tool: null, eggId: null },
@@ -1032,7 +1140,9 @@ export const useGameStore = create(
         ownedEggs: s.ownedEggs,
         placedEggs: s.placedEggs,
         pets: s.pets,
+        memorials: s.memorials,
         namingPetId: s.namingPetId,
+        starterName: s.starterName,
         selectedPetId: s.selectedPetId,
         quests: s.quests,
         crops: s.crops,
@@ -1058,7 +1168,17 @@ export const useGameStore = create(
         let backfilled = false;
         let petBackfilled = false;
         const pets = (state.pets ?? []).map((p) => {
-          let next = p;
+          let next = {
+            ...p,
+            stage: p.stage ?? 'adult',
+            carePoints: p.carePoints ?? 0,
+            ageDays: p.ageDays ?? 0,
+            bornDay: p.bornDay ?? null,
+            elderSince: p.elderSince ?? null,
+            deceased: p.deceased ?? false,
+            ranAway: p.ranAway ?? false,
+            sick: p.sick ?? false,
+          };
           // Backfill the hygiene need for pets from before the hygiene feature
           if (next.needs?.hygiene === undefined) {
             next = { ...next, needs: { ...(next.needs ?? {}), hygiene: 100 } };
@@ -1084,11 +1204,14 @@ export const useGameStore = create(
           decorations: mergeDecorations(generateInitialDecorations(), planted, removed),
           weather,
           plots: state.plots ?? [],
+          inventory: { ...useGameStore.getState().inventory, ...(state.inventory ?? {}) },
           needs,
           sick: state.sick === undefined ? isSick(needs) : state.sick,
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
-          ...(petBackfilled ? { pets } : {}),
+          ...(petBackfilled || pets.some((p, i) => p !== (state.pets ?? [])[i]) ? { pets } : {}),
+          memorials: state.memorials ?? [],
+          starterName: state.starterName ?? 'My pet',
           // Backfill player state for saves from before the player avatar feature
           ...(state.currency === undefined ? { currency, tools, playerPos, playerDir, playerTool } : {}),
         });
@@ -1319,6 +1442,8 @@ export const FEED_BY_RESOURCE = {
   fruit: { hunger: 26, happiness: 18 }, // hearty jungle meal
   herb: { energy: 30 }, // mountain tonic
   flower: { happiness: 30 }, // a sweet bouquet
+  stew: { hunger: 34, hygiene: 20, happiness: 10 },
+  grilled: { hunger: 30, energy: 22, happiness: 8 },
 };
 
 /** Mood display config keyed by mood id. */
@@ -1328,6 +1453,8 @@ export const MOODS = {
   hungry: { label: 'Hungry', emoji: '😋' },
   tired: { label: 'Tired', emoji: '😴' },
   sad: { label: 'Sad', emoji: '😢' },
+  sick: { label: 'Sick', emoji: '🤒' },
+  fleeing: { label: 'Runaway', emoji: '💨' },
 };
 
 /**
@@ -1340,6 +1467,7 @@ export const MOODS = {
  * soothed by the dark.
  */
 export function moodFromNeeds(needs, isNight = false) {
+  if (needs.hunger < 25 || needs.hygiene < 25) return 'sick';
   if (needs.energy < 25) return 'tired';
   if (needs.hunger < 25) return 'hungry';
   if (needs.happiness < 25) return isNight ? 'content' : 'sad';

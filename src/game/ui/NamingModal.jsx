@@ -13,18 +13,23 @@ const SPECIES_ICON_MAP = { rabbit: 'egg', cat: 'cat', duck: 'duck' };
  */
 export default function NamingModal() {
   const namingPetId = useGameStore((s) => s.namingPetId);
-  const species = useGameStore((s) =>
-    s.pets.find((p) => p.id === s.namingPetId)?.species ?? null
+  const renamingPetId = useGameStore((s) => s.renamingPetId);
+  const editingId = renamingPetId ?? namingPetId;
+  const species = useGameStore((s) => s.pets.find((p) => p.id === editingId)?.species ?? null);
+  const currentName = useGameStore((s) =>
+    editingId === 'starter' ? s.starterName : s.pets.find((p) => p.id === editingId)?.name ?? ''
   );
   const [value, setValue] = useState('');
 
   const sp = species ? PET_SPECIES[species] : null;
-  const open = Boolean(namingPetId && sp);
+  const isRename = Boolean(renamingPetId);
+  const displayLabel = sp?.label ?? 'My pet';
+  const open = Boolean(editingId && (sp || isRename));
 
-  // Reset the input each time a new pet hatches
+  // Reset the input each time a new modal opens
   useEffect(() => {
-    if (open) setValue('');
-  }, [namingPetId, open]);
+    if (open) setValue(isRename ? currentName : '');
+  }, [editingId, open, isRename, currentName]);
 
   useEffect(() => {
     if (!open) return;
@@ -38,10 +43,12 @@ export default function NamingModal() {
   }, [open, value]);
 
   const confirm = () => {
-    useGameStore.getState().namePet(value.trim() || sp.label);
+    const st = useGameStore.getState();
+    if (isRename) st.renamePet(value);
+    else st.namePet(value.trim() || sp.label);
   };
 
-  if (!open || !sp) return null;
+  if (!open) return null;
 
   return (
     <div
@@ -74,20 +81,20 @@ export default function NamingModal() {
         }}
       >
         <div style={{ fontSize: 40, lineHeight: 1 }}>
-          <SvgIcon name={SPECIES_ICON_MAP[sp.id] || 'egg'} size={40} />
+          <SvgIcon name={SPECIES_ICON_MAP[sp?.id] || 'egg'} size={40} />
         </div>
         <div style={{ fontSize: 17, fontWeight: 800 }}>
-          Your egg hatched!
+          {isRename ? 'Rename your pet' : 'Your egg hatched!'}
         </div>
         <div style={{ fontSize: 13, opacity: 0.8 }}>
-          A {sp.label.toLowerCase()} popped out. What's its name?
+          {isRename ? 'Give your companion a name that feels like home.' : `A ${sp.label.toLowerCase()} popped out. What's its name?`}
         </div>
         <input
           autoFocus
           value={value}
           maxLength={18}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={sp.label}
+          placeholder={isRename ? currentName : displayLabel}
           style={{
             padding: '10px 14px',
             borderRadius: 12,
@@ -118,10 +125,10 @@ export default function NamingModal() {
           onMouseEnter={(e) => (e.currentTarget.style.background = '#ffe08a')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#ffd166')}
         >
-          Name {value.trim() ? `“${value.trim()}”` : `the ${sp.label.toLowerCase()}`} <SvgIcon name="star" size={16} />
+          {isRename ? 'Save name' : `Name ${value.trim() ? `“${value.trim()}”` : `the ${displayLabel.toLowerCase()}`} `}<SvgIcon name="star" size={16} />
         </button>
         <div style={{ fontSize: 11, opacity: 0.6 }}>
-          Enter or Esc to confirm · leave blank for {sp.label}
+          Enter or Esc to confirm{!isRename && ` · leave blank for ${displayLabel}`}
         </div>
       </div>
     </div>

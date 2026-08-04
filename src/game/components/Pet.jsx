@@ -106,6 +106,8 @@ export default function Pet({ petId }) {
   const speciesColors = PET_SPECIES[species]?.colors ?? PET_SPECIES.bunny.colors;
   const stageStyle = speciesStageStyle(stage, speciesColors);
   const colors = stageStyle.colors;
+  const liveSick = sp?.sick || (sp?.needs?.hunger ?? 100) < 25 || (sp?.needs?.hygiene ?? 100) < 25;
+  const visualColors = liveSick ? { ...colors, body: '#8fb89b', belly: '#b7d0b5', ears: '#739a7d', cheeks: '#9bb7a0' } : colors;
 
   // Spawn where the egg hatched (fall back to the spawn clearing)
   const startGrid = sp?.pos ?? { row: SPAWN_POINT.row, col: SPAWN_POINT.col };
@@ -113,8 +115,10 @@ export default function Pet({ petId }) {
   const startY = surfaceHeightAt(startGrid.row, startGrid.col);
 
   const state = useRef({
-    mode: 'idle', // 'idle' | 'walk' | 'sit' | 'sleep'
+    mode: 'idle', // 'idle' | 'walk' | 'sit' | 'sleep' | 'fetchOut' | 'fetchBack' | 'follow'
     path: [],
+    actionTarget: null,
+    followHeartTimer: 0,
     pathIndex: 0,
     pos: { x: start.x, z: start.z },
     yaw: 0,
@@ -230,6 +234,19 @@ export default function Pet({ petId }) {
     }
   };
 
+  const startActionPath = (target, mode) => {
+    const current = state.current;
+    const from = worldToGrid(current.pos.x, current.pos.z);
+    const blocked = (row, col) => useGameStore.getState().isTileBlocked(row, col);
+    const path = findPath(from.row, from.col, target.row, target.col, blocked);
+    if (!path.length) return false;
+    current.path = path.map((point) => gridToWorld(point.row, point.col));
+    current.pathIndex = 0;
+    current.mode = mode;
+    current.actionTarget = target;
+    return true;
+  };
+
   /** Pop a heart burst (used by petting AND feeding). */
   const burstHearts = () => {
     hearts.forEach((h) => {
@@ -330,13 +347,21 @@ export default function Pet({ petId }) {
 
     const moodNow = moodFromNeeds(pet?.needs ?? { hunger: 100, energy: 100, happiness: 100 }, isNight);
     const speedMult = MOOD_SPEED[moodNow] ?? 1;
+    const followTarget = live.playerPos
+      ? { row: live.playerPos.row - Math.round(Math.sin(live.playerDir) * 2), col: live.playerPos.col - Math.round(Math.cos(live.playerDir) * 2) }
+      : null;
+    if (pet && !pet.sleeping && !pet.sick && !pet.ranAway && !pet.deceased && pet.fetchTarget && !['fetchOut', 'fetchBack'].includes(s.mode)) {
+      startActionPath(pet.fetchTarget, 'fetchOut');
+    } else if (pet && !pet.sleeping && !pet.sick && !pet.ranAway && !pet.deceased && live.followingPetId === petId && s.mode === 'idle' && followTarget) {
+      startActionPath(followTarget, 'follow');
+    }
     const isTired = moodNow === 'tired';
     const isHappy = moodNow === 'happy';
     const isSad = moodNow === 'sad';
 
     // ---- State machine ----
-    if (pet?.sleeping) {
-      s.mode = 'sleep';
+    if (pet?.sleeping || pet?.sick || pet?.ranAway || pet?.deceased) {
+      s.mode = pet?.sleeping ? 'sleep' : 'sit';
     } else if (petPause.current > 0) {
       petPause.current -= dt;
     } else if (s.mode === 'sleep') {
@@ -347,6 +372,35 @@ export default function Pet({ petId }) {
       if (s.timer <= 0) tryStartWalking();
     } else if (s.mode === 'walk') {
       stepAlongPath(dt, speedMult);
+    } else if (s.mode === 'fetchOut' || s.mode === 'fetchBack' || s.mode === 'follow') {
+      const actionMode = s.mode;
+      stepAlongPath(dt, actionMode === 'fetchOut' ? 1.6 : 1.15);
+      if (s.mode === 'sit') {
+        if (actionMode === 'fetchOut') {
+          const player = live.playerPos;
+          if (player && startActionPath(player, 'fetchBack')) {
+            s.actionTarget = player;
+          } else {
+            live.fetchReturned(petId);
+            burstHearts();
+          }
+        } else if (actionMode === 'fetchBack') {
+          live.fetchReturned(petId);
+          burstHearts();
+        } else if (live.followingPetId === petId) {
+          s.mode = 'idle';
+          s.timer = 0.2;
+          s.followHeartTimer -= dt;
+          if (s.followHeartTimer <= 0) {
+            live.followHeart(petId);
+            s.followHeartTimer = 1;
+            burstHearts();
+          }
+        } else {
+          s.mode = 'idle';
+          s.timer = 0.5;
+        }
+      }
     } else if (s.mode === 'sit') {
       s.timer -= dt;
       if (s.timer <= 0) {
@@ -494,21 +548,21 @@ export default function Pet({ petId }) {
       {/* Body + belly */}
       <mesh ref={bodyRef} position={[0, 0.2, 0]} castShadow>
         <sphereGeometry args={[0.17, 18, 14]} />
-        <meshToonMaterial color={colors.body} />
+        <meshToonMaterial color={visualColors.body} />
       </mesh>
       <mesh position={[0, 0.16, 0.09]} scale={[1, 0.8, 0.6]}>
         <sphereGeometry args={[0.11, 14, 10]} />
-        <meshToonMaterial color={colors.belly} />
+        <meshToonMaterial color={visualColors.belly} />
       </mesh>
 
       {/* Head */}
       <mesh ref={headRef} position={[0, 0.4, 0.02]} castShadow>
         <sphereGeometry args={[0.12, 16, 12]} />
-        <meshToonMaterial color={colors.body} />
+        <meshToonMaterial color={visualColors.body} />
       </mesh>
 
       {/* Species ears / beak */}
-      <SpeciesParts species={species} colors={colors} />
+      <SpeciesParts species={species} colors={visualColors} />
 
       {/* Eyes (group scales Y for blinking) */}
       <group ref={eyeGroupRef}>
@@ -555,7 +609,7 @@ export default function Pet({ petId }) {
           }}
         >
           <span style={{ fontSize: 12, lineHeight: 1, textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>
-            {ranAway ? '💨' : sleeping ? '💤' : MOODS[mood]?.emoji ?? '🙂'}
+            {ranAway ? '💨' : sleeping ? '💤' : liveSick ? '🤒' : MOODS[mood]?.emoji ?? '🙂'}
           </span>
           {name && (
             <span

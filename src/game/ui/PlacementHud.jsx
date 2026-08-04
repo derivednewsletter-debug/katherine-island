@@ -11,6 +11,8 @@ const ICON_FOR_TOOL = {
   flower: 'flower',
   fountain: 'shop',
   lantern: 'shop',
+  stove: 'stove',
+  grill: 'grill',
   erase: 'close',
 };
 const ICON_FOR_CROP = {

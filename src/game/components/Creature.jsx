@@ -123,6 +123,8 @@ export default function Creature() {
   const stage = useGameStore((s) => s.stage);
   const stageStyle = STAGE_STYLE[stage] ?? STAGE_STYLE.baby;
   const colors = stageStyle.colors;
+  const sick = useGameStore((s) => s.sick || s.needs.hunger < 25 || s.needs.hygiene < 25);
+  const visualColors = sick ? { ...colors, body: '#8fb89b', belly: '#b7d0b5', ears: '#739a7d', cheeks: '#9bb7a0' } : colors;
   const prevStageRef = useRef(stage);
   const evolvePulse = useRef(0); // 1 → 0 celebration scale pop
 
@@ -132,8 +134,10 @@ export default function Creature() {
 
   // Internal animation state (refs so per-frame updates don't re-render React)
   const state = useRef({
-    mode: 'idle', // 'idle' | 'walk' | 'sit'
-    path: [], // world waypoints [{x, z}]
+    mode: 'idle', // 'idle' | 'walk' | 'sit' | 'fetchOut' | 'fetchBack' | 'follow'
+    path: [],
+    actionTarget: null,
+    followHeartTimer: 0, // world waypoints [{x, z}]
     pathIndex: 0,
     pos: { x: start.x, z: start.z }, // current world position
     yaw: 0, // facing direction
@@ -308,6 +312,19 @@ export default function Creature() {
     }
   };
 
+  const startActionPath = (target, mode) => {
+    const current = state.current;
+    const from = worldToGrid(current.pos.x, current.pos.z);
+    const blocked = (row, col) => useGameStore.getState().isTileBlocked(row, col);
+    const path = findPath(from.row, from.col, target.row, target.col, blocked);
+    if (!path.length) return false;
+    current.path = path.map((point) => gridToWorld(point.row, point.col));
+    current.pathIndex = 0;
+    current.mode = mode;
+    current.actionTarget = target;
+    return true;
+  };
+
   /** Pop a heart burst (used by petting AND feeding). */
   const burstHearts = () => {
     hearts.forEach((h) => {
@@ -405,7 +422,13 @@ export default function Creature() {
     // Mood read live (no re-render): drives speed + animation feel.
     // isNight (computed above) feeds the night-calm mood bonus.
     const moodNow = moodFromNeeds(useGameStore.getState().needs, isNight);
-    const speedMult = MOOD_SPEED[moodNow];
+    const speedMult = MOOD_SPEED[moodNow] ?? 1;
+    const followTarget = useGameStore.getState().playerPos
+      ? { row: useGameStore.getState().playerPos.row - Math.round(Math.sin(useGameStore.getState().playerDir) * 2), col: useGameStore.getState().playerPos.col - Math.round(Math.cos(useGameStore.getState().playerDir) * 2) }
+      : null;
+    const live = useGameStore.getState();
+    if (!live.sleeping && !live.sick && live.fetchTarget && !['fetchOut', 'fetchBack'].includes(s.mode)) startActionPath(live.fetchTarget, 'fetchOut');
+    else if (!live.sleeping && !live.sick && live.followingPetId === 'starter' && s.mode === 'idle' && followTarget) startActionPath(followTarget, 'follow');
     const isTired = moodNow === 'tired';
     const isHappy = moodNow === 'happy';
     const isSad = moodNow === 'sad';
@@ -437,6 +460,24 @@ export default function Creature() {
       if (s.timer <= 0) tryStartWalking();
     } else if (s.mode === 'walk') {
       stepAlongPath(dt, speedMult, isTired ? 1.6 : 1);
+    } else if (s.mode === 'fetchOut' || s.mode === 'fetchBack' || s.mode === 'follow') {
+      const actionMode = s.mode;
+      stepAlongPath(dt, actionMode === 'fetchOut' ? 1.8 : 1.2, 1);
+      if (s.mode === 'sit') {
+        if (actionMode === 'fetchOut') {
+          const player = live.playerPos;
+          if (player && startActionPath(player, 'fetchBack')) s.actionTarget = player;
+          else { live.fetchReturned('starter'); burstHearts(); }
+        } else if (actionMode === 'fetchBack') {
+          live.fetchReturned('starter');
+          burstHearts();
+        } else if (live.followingPetId === 'starter') {
+          s.mode = 'idle';
+          s.timer = 0.2;
+          s.followHeartTimer -= dt;
+          if (s.followHeartTimer <= 0) { live.followHeart('starter'); s.followHeartTimer = 1; burstHearts(); }
+        }
+      }
     } else if (s.mode === 'sit') {
       s.timer -= dt;
       if (s.timer <= 0) {
@@ -642,42 +683,42 @@ export default function Creature() {
       {/* Tail */}
       <mesh ref={tailRef} position={[0, 0.2, -0.24]} castShadow>
         <sphereGeometry args={[0.07, 12, 10]} />
-        <meshToonMaterial color={colors.accent} />
+        <meshToonMaterial color={visualColors.accent} />
       </mesh>
 
       {/* Feet */}
       <mesh ref={leftFootRef} position={[-0.11, 0.07, 0.08]} castShadow>
         <sphereGeometry args={[0.06, 12, 10]} />
-        <meshToonMaterial color={colors.ears} />
+        <meshToonMaterial color={visualColors.ears} />
       </mesh>
       <mesh ref={rightFootRef} position={[0.11, 0.07, 0.08]} castShadow>
         <sphereGeometry args={[0.06, 12, 10]} />
-        <meshToonMaterial color={colors.ears} />
+        <meshToonMaterial color={visualColors.ears} />
       </mesh>
 
       {/* Body + belly */}
       <mesh ref={bodyRef} position={[0, 0.22, 0]} castShadow>
         <sphereGeometry args={[0.2, 18, 14]} />
-        <meshToonMaterial color={colors.body} />
+        <meshToonMaterial color={visualColors.body} />
       </mesh>
       <mesh position={[0, 0.18, 0.1]} scale={[1, 0.8, 0.6]}>
         <sphereGeometry args={[0.13, 14, 10]} />
-        <meshToonMaterial color={colors.belly} />
+        <meshToonMaterial color={visualColors.belly} />
       </mesh>
 
       {/* Head */}
       <mesh ref={headRef} position={[0, 0.42, 0.02]} castShadow>
         <sphereGeometry args={[0.14, 16, 12]} />
-        <meshToonMaterial color={colors.body} />
+        <meshToonMaterial color={visualColors.body} />
       </mesh>
       {/* Ears */}
       <mesh position={[-0.1, 0.52, 0]} castShadow>
         <sphereGeometry args={[0.045, 10, 8]} />
-        <meshToonMaterial color={colors.ears} />
+        <meshToonMaterial color={visualColors.ears} />
       </mesh>
       <mesh position={[0.1, 0.52, 0]} castShadow>
         <sphereGeometry args={[0.045, 10, 8]} />
-        <meshToonMaterial color={colors.ears} />
+        <meshToonMaterial color={visualColors.ears} />
       </mesh>
 
       {/* Eyes (group scales Y for blinking) */}
@@ -745,7 +786,7 @@ export default function Creature() {
           }}
         >
           <span className={sleeping ? 'sleep-emoji' : undefined}>
-            {sleeping ? '💤' : MOODS[mood].emoji}
+            {sleeping ? '💤' : sick ? '🤒' : MOODS[mood].emoji}
           </span>
         </div>
       </Html>

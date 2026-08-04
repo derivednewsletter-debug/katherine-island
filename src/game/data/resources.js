@@ -17,6 +17,9 @@ export const RESOURCES = {
   // Pet care items — held and used on a pet
   soap: { label: 'Soap', color: '#c9a9ff' },
   medkit: { label: 'Medkit', color: '#ff7b7b' },
+  toy: { label: 'Toy', color: '#ff9e6b' },
+  stew: { label: 'Stew', color: '#f0b27a' },
+  grilled: { label: 'Grilled', color: '#c98a4b' },
   // Coins — the shop currency (sell resources, buy seeds/tools)
   coin: { label: 'Coins', color: '#ffd700' },
 };

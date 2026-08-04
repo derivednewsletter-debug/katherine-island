@@ -9,6 +9,7 @@ import QuestBoard from './game/ui/QuestBoard';
 import FarmHud from './game/ui/FarmHud';
 import Minimap from './game/ui/Minimap';
 import NamingModal from './game/ui/NamingModal';
+import KitchenHud from './game/ui/KitchenHud';
 import ToastHud from './game/ui/ToastHud';
 import PlayerToolHud from './game/ui/PlayerToolHud';
 import { startGameClock } from './game/state/gameClock';
@@ -107,6 +108,9 @@ export default function App() {
 
       {/* Minimap (bottom-left, above the time controls) */}
       <Minimap />
+
+      {/* Cooking panel (opens when a stove or grill is clicked) */}
+      <KitchenHud />
 
       {/* Hatch-time naming overlay (appears when an egg hatches) */}
       <NamingModal />
