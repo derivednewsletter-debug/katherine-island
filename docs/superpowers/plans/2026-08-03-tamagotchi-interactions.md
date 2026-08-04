@@ -39,14 +39,14 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -138,14 +138,14 @@ git commit -m "feat: rename pets anytime"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -265,14 +265,14 @@ git commit -m "feat: play fetch with pets"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -385,14 +385,14 @@ git commit -m "feat: pet HUD action row and memorial/runaway markers"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 

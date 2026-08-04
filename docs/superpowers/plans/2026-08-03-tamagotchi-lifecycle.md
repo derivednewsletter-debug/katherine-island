@@ -36,14 +36,14 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore, GROWTH, growthInfo } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -179,14 +179,14 @@ git commit -m "feat: per-stage pet visuals for four growth stages"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -275,14 +275,14 @@ git commit -m "feat: per-pet growth stages and care points"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/petStates.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const mod = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -357,14 +357,14 @@ git commit -m "feat: pet aging with elder lifespan and death trigger"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 

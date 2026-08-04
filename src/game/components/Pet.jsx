@@ -8,7 +8,7 @@ import { useGameStore, moodFromNeeds, MOODS, timeOfDay, FEED_BY_RESOURCE } from 
 import { moodFromState } from '../state/petStates';
 import { PET_SPECIES, PET_HOME_ROAM_RADIUS } from '../data/species';
 import { TILE_THICKNESS } from './Tile';
-import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts, SpeciesParts, speciesStageStyle } from './petParts';
+import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts, speciesStageStyle } from './petParts';
 
 const WALK_SPEED = 1.4; // tiles per second (a touch slower than the starter)
 

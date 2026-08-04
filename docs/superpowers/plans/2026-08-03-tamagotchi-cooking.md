@@ -106,14 +106,14 @@ git commit -m "feat: stove and grill build kinds unlocked at the shop"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/data/recipes.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const mod = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -220,14 +220,14 @@ git commit -m "feat: cooking recipe catalog"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -363,14 +363,14 @@ git commit -m "feat: cooking panel for stove and grill"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore, FEED_BY_RESOURCE } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 

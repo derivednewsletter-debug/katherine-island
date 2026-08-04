@@ -36,14 +36,14 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore, NEED_DRAIN } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -133,14 +133,14 @@ git commit -m "feat: add hygiene need with faster overall need drain"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/petStates.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const mod = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -301,14 +301,14 @@ git commit -m "feat: wire sickness and runaway tracking into need drain"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -414,14 +414,14 @@ git commit -m "feat: add bathing (soap) and medkit cure actions"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -582,14 +582,14 @@ git commit -m "feat: click pets with soap/medkit to bathe or cure"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
@@ -718,14 +718,14 @@ git commit -m "feat: show hygiene bar and sick indicator in pet HUD"
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const esbuild = require('esbuild');
-const { build } = await esbuild.build({
+const result = await esbuild.build({
   entryPoints: ['src/game/state/gameStore.js'],
   bundle: true,
   format: 'esm',
   platform: 'node',
   write: false,
 });
-const out = build.outputFiles[0].text;
+const out = result.outputFiles[0].text;
 const { useGameStore, NEED_DRAIN } = await import('data:text/javascript,' + encodeURIComponent(out));
 const pass = (name, cond) => { if (!cond) { console.error('FAIL: ' + name); process.exitCode = 1; } else console.log('ok: ' + name); };
 
