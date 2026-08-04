@@ -5,6 +5,29 @@
  */
 import * as THREE from 'three';
 
+const STAGE_SCALE = { baby: 0.7, child: 0.85, adult: 1.0, elder: 1.12 };
+
+/** Per-stage body scale + colors. Elders grey out; other stages keep their hues. */
+export function speciesStageStyle(stage, colors) {
+  if (stage === 'elder') {
+    const grey = (hex) => {
+      const c = new THREE.Color(hex);
+      const avg = (c.r + c.g + c.b) / 3;
+      return new THREE.Color(avg, avg, avg).getStyle();
+    };
+    return {
+      scale: 1.12,
+      colors: {
+        ...colors,
+        body: grey(colors.body),
+        belly: grey(colors.belly),
+        ears: grey(colors.ears),
+      },
+    };
+  }
+  return { scale: STAGE_SCALE[stage] ?? 1, colors };
+}
+
 /** How many hearts a petting/feeding burst spawns. */
 export const HEART_COUNT = 6;
 

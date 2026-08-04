@@ -8,7 +8,7 @@ import { useGameStore, moodFromNeeds, MOODS, timeOfDay, FEED_BY_RESOURCE } from 
 import { moodFromState } from '../state/petStates';
 import { PET_SPECIES, PET_HOME_ROAM_RADIUS } from '../data/species';
 import { TILE_THICKNESS } from './Tile';
-import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts } from './petParts';
+import { HEART_COUNT, MOOD_SPEED, makeHeartGeometry, makeHearts, SpeciesParts, speciesStageStyle } from './petParts';
 
 const WALK_SPEED = 1.4; // tiles per second (a touch slower than the starter)
 
@@ -98,11 +98,14 @@ export default function Pet({ petId }) {
   const ranAway = useGameStore((s) => s.pets.find((p) => p.id === petId)?.ranAway ?? false);
   const sleeping = useGameStore((s) => s.pets.find((p) => p.id === petId)?.sleeping ?? false);
   const selected = useGameStore((s) => s.selectedPetId === petId);
+  const stage = useGameStore((s) => s.pets.find((p) => p.id === petId)?.stage ?? 'adult');
 
   // Live-read the pet's species/needs/pos in the frame loop (no re-render).
   const sp = useGameStore.getState().pets.find((p) => p.id === petId);
   const species = sp?.species ?? 'bunny';
-  const colors = PET_SPECIES[species]?.colors ?? PET_SPECIES.bunny.colors;
+  const speciesColors = PET_SPECIES[species]?.colors ?? PET_SPECIES.bunny.colors;
+  const stageStyle = speciesStageStyle(stage, speciesColors);
+  const colors = stageStyle.colors;
 
   // Spawn where the egg hatched (fall back to the spawn clearing)
   const startGrid = sp?.pos ?? { row: SPAWN_POINT.row, col: SPAWN_POINT.col };
@@ -443,7 +446,7 @@ export default function Pet({ petId }) {
     <group
       ref={groupRef}
       position={[start.x, startY, start.z]}
-      scale={0.78}
+      scale={stageStyle.scale}
       onClick={handlePet}
       onPointerOver={(e) => {
         e.stopPropagation();

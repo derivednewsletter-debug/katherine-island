@@ -43,6 +43,30 @@ const STAGE_STYLE = {
       accent: '#d9a05b',
     },
   },
+  child: {
+    scale: 0.95,
+    colors: {
+      body: '#fbe9bb',
+      belly: '#fdf8e8',
+      ears: '#efc886',
+      eyes: '#3a3a44',
+      cheeks: '#faa9b9',
+      leaf: '#92c47e',
+      accent: '#e3b46b',
+    },
+  },
+  elder: {
+    scale: 1.25,
+    colors: {
+      body: '#cfcfcf',
+      belly: '#e8e8e8',
+      ears: '#b8b8b8',
+      eyes: '#4d4d52',
+      cheeks: '#cbb0b8',
+      leaf: '#9aa89a',
+      accent: '#a8a8a8',
+    },
+  },
 };
 
 /** World-space Y of the top surface of a tile (feet rest here). */
