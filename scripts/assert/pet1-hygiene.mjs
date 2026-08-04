@@ -19,4 +19,7 @@ pass('hygiene drains from 100', s.needs.hygiene < 100 && s.needs.hygiene > 90);
 pass('hygiene is a number', typeof s.needs.hygiene === 'number');
 pass('NEED_DRAIN has hygiene', typeof NEED_DRAIN.hygiene === 'number');
 pass('hunger baseline raised ~1.5x', NEED_DRAIN.hunger >= 0.6);
+useGameStore.setState({ needs: { hunger: 5, energy: 100, happiness: 100, hygiene: 5 }, sick: false });
+useGameStore.getState().drainNeeds(10);
+pass('starter marked sick on low hunger/hygiene', useGameStore.getState().sick === true);
 console.log(process.exitCode ? 'FAILED' : 'PASS');

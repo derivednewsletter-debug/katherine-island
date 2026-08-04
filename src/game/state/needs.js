@@ -7,6 +7,7 @@
  */
 import { useGameStore } from './gameStore';
 import { onGameTick } from './gameClock';
+import { isSick } from './petStates';
 
 let started = false;
 
@@ -39,7 +40,11 @@ export function startNeedsSystem() {
     // letting it also farm care points would make evolution a passive
     // overnight grind instead of an earned (petted) moment.
     if (store.sleeping) return;
-    const { hunger, energy, happiness } = useGameStore.getState().needs;
+    const state = useGameStore.getState();
+    // Sick or runaway pets earn no care — sickness needs curing first and a
+    // runaway has left the island until it's rescued.
+    if (isSick(state.needs) || state.ranAway) return;
+    const { hunger, energy, happiness } = state.needs;
     if (hunger > 70 && energy > 70 && happiness > 70) {
       useGameStore.getState().addCare(CARE_PER_GAME_SECOND * flush);
     }

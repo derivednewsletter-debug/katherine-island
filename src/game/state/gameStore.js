@@ -25,6 +25,7 @@ import { PET_SPECIES, EGG_HATCH_MS, pickPetHome } from '../data/species';
 import { questById, freshQuests, questIndexByMetric } from '../data/quests';
 import { cropById, cropStageIndex, DAY_CYCLE_SECONDS as CYCLE_SECONDS } from '../data/crops';
 import { RESOURCES } from '../data/resources';
+import { isSick, trackRunaway, SICK_DRAIN_MULT } from './petStates';
 
 /** Seconds of game time per full day-night cycle. The value lives in
  *  data/crops.js (night-only crop growth counts phases against it) and is
@@ -294,17 +295,22 @@ export const useGameStore = create(
       // drift from the HUD and the sky — 0.2–0.75 counts as daylight.
       const { isDay } = timeOfDay(s.time, s.dayCycleSeconds);
 
+      // Sickness drains every relevant need faster; it never forces sleep,
+      // so energy behaves normally (recharges while sleeping, drains awake).
+      const sick = isSick(s.needs);
+      const mult = sick ? SICK_DRAIN_MULT : 1;
+
       const starterNeeds = s.sleeping
         ? {
-            hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
+            hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * 0.2 * mult * rate * gameDt),
             energy: Math.min(100, s.needs.energy + SLEEP_RECHARGE * gameDt),
-            happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
-            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * rate * gameDt),
+            happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * 0.2 * mult * rate * gameDt),
+            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * mult * rate * gameDt),
           }
         : {
             hunger: Math.max(
               0,
-              s.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * rate * gameDt
+              s.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * mult * rate * gameDt
             ),
             energy: Math.max(
               0,
@@ -312,45 +318,43 @@ export const useGameStore = create(
             ),
             happiness: Math.max(
               0,
-              s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
+              s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * mult * rate * gameDt
             ),
-            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * rate * gameDt),
+            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * mult * rate * gameDt),
           };
 
-      // Drain every hatched pet by the same day-aware rules.
+      // Drain every hatched pet by the same day-aware rules, flag sickness
+      // and track the runaway grace window here each tick.
       const pets = s.pets.map((p) => {
-        if (p.sleeping) {
-          return {
-            ...p,
-            needs: {
-              hunger: Math.max(0, p.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
+        const pSick = isSick(p.needs);
+        const pMult = pSick ? SICK_DRAIN_MULT : 1;
+        const needs = p.sleeping
+          ? {
+              hunger: Math.max(0, p.needs.hunger - NEED_DRAIN.hunger * 0.2 * pMult * rate * gameDt),
               energy: Math.min(100, p.needs.energy + SLEEP_RECHARGE * gameDt),
-              happiness: Math.max(0, p.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
-              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * rate * gameDt),
-            },
-          };
-        }
-        return {
-          ...p,
-          needs: {
-            hunger: Math.max(
-              0,
-              p.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * rate * gameDt
-            ),
-            energy: Math.max(
-              0,
-              p.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
-            ),
-            happiness: Math.max(
-              0,
-              p.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
-            ),
-            hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * rate * gameDt),
-          },
-        };
+              happiness: Math.max(0, p.needs.happiness - NEED_DRAIN.happiness * 0.2 * pMult * rate * gameDt),
+              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * pMult * rate * gameDt),
+            }
+          : {
+              hunger: Math.max(
+                0,
+                p.needs.hunger - NEED_DRAIN.hunger * (isDay ? DAY_HUNGER_MULT : 1) * pMult * rate * gameDt
+              ),
+              energy: Math.max(
+                0,
+                p.needs.energy - NEED_DRAIN.energy * (isDay ? 1 : NIGHT_ENERGY_MULT) * rate * gameDt
+              ),
+              happiness: Math.max(
+                0,
+                p.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * pMult * rate * gameDt
+              ),
+              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * pMult * rate * gameDt),
+            };
+        const next = { ...p, needs, sick: pSick };
+        return trackRunaway(next, s.time);
       });
 
-      return { needs: starterNeeds, pets };
+      return { needs: starterNeeds, sick, pets };
     }),
 
   /** Mark the pet asleep/awake (set by Creature.jsx on night/day). */
@@ -391,6 +395,7 @@ export const useGameStore = create(
       hunger: Math.min(100, (needs.hunger ?? 100) + (fx.hunger ?? 0)),
       energy: Math.min(100, (needs.energy ?? 100) + (fx.energy ?? 0)),
       happiness: Math.min(100, (needs.happiness ?? 100) + (fx.happiness ?? 0)),
+      hygiene: Math.min(100, (needs.hygiene ?? 100) + (fx.hygiene ?? 0)),
     });
     if (petId === 'starter') {
       set((st) => ({
