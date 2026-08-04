@@ -1227,12 +1227,22 @@ export const GROWTH = {
   baby: {
     label: 'Baby',
     emoji: '🐣',
-    next: { id: 'adult', required: 5 },
+    next: { id: 'child', required: 5 },
+  },
+  child: {
+    label: 'Child',
+    emoji: '🌱',
+    next: { id: 'adult', required: 15 },
   },
   adult: {
     label: 'Adult',
     emoji: '🦋',
-    next: null, // fully grown
+    next: { id: 'elder', required: 40 },
+  },
+  elder: {
+    label: 'Elder',
+    emoji: '🕊️',
+    next: null,
   },
 };
 
