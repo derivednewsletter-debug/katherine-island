@@ -82,6 +82,7 @@ export const useGameStore = create(
     hunger: 100,
     energy: 100,
     happiness: 100,
+    hygiene: 100,
   },
 
   // ── Decorations ──
@@ -298,6 +299,7 @@ export const useGameStore = create(
             hunger: Math.max(0, s.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
             energy: Math.min(100, s.needs.energy + SLEEP_RECHARGE * gameDt),
             happiness: Math.max(0, s.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
+            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * rate * gameDt),
           }
         : {
             hunger: Math.max(
@@ -312,6 +314,7 @@ export const useGameStore = create(
               0,
               s.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
             ),
+            hygiene: Math.max(0, s.needs.hygiene - NEED_DRAIN.hygiene * rate * gameDt),
           };
 
       // Drain every hatched pet by the same day-aware rules.
@@ -323,6 +326,7 @@ export const useGameStore = create(
               hunger: Math.max(0, p.needs.hunger - NEED_DRAIN.hunger * 0.2 * rate * gameDt),
               energy: Math.min(100, p.needs.energy + SLEEP_RECHARGE * gameDt),
               happiness: Math.max(0, p.needs.happiness - NEED_DRAIN.happiness * 0.2 * rate * gameDt),
+              hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * 0.2 * rate * gameDt),
             },
           };
         }
@@ -341,6 +345,7 @@ export const useGameStore = create(
               0,
               p.needs.happiness - NEED_DRAIN.happiness * (isDay ? 1 : NIGHT_HAPPINESS_MULT) * rate * gameDt
             ),
+            hygiene: Math.max(0, p.needs.hygiene - NEED_DRAIN.hygiene * rate * gameDt),
           },
         };
       });
@@ -864,7 +869,7 @@ export const useGameStore = create(
       playerDir: 0,
       playerTool: 'hoe',
       tools: { axe: 50, hoe: 50 },
-      needs: { hunger: 100, energy: 100, happiness: 100 },
+      needs: { hunger: 100, energy: 100, happiness: 100, hygiene: 100 },
       decorations: generateInitialDecorations(),
       plantedDecorations: [],
       removedScatterCells: [],
@@ -958,9 +963,15 @@ export const useGameStore = create(
         let backfilled = false;
         let petBackfilled = false;
         const pets = (state.pets ?? []).map((p) => {
-          if (p.home && p.home.row !== undefined) return p;
+          let next = p;
+          // Backfill the hygiene need for pets from before the hygiene feature
+          if (next.needs?.hygiene === undefined) {
+            next = { ...next, needs: { ...(next.needs ?? {}), hygiene: 100 } };
+            petBackfilled = true;
+          }
+          if (next.home && next.home.row !== undefined) return next;
           petBackfilled = true;
-          return { ...p, home: pickPetHome(p.species) };
+          return { ...next, home: pickPetHome(next.species) };
         });
         // Saves from before the weather feature lack the slice — backfill a
         // fresh one so growth math never reads undefined spans.
@@ -971,10 +982,14 @@ export const useGameStore = create(
           nextRainAt: 0,
           rainSpans: [],
         };
+        // Backfill the starter's hygiene need for older saves.
+        const needs = state.needs ?? { hunger: 100, energy: 100, happiness: 100, hygiene: 100 };
+        if (needs.hygiene === undefined) needs.hygiene = 100;
         useGameStore.setState({
           decorations: mergeDecorations(generateInitialDecorations(), planted, removed),
           weather,
           plots: state.plots ?? [],
+          needs,
           // Only touch pets when a pre-territory pet actually needed a home
           // (avoids churning pet subscribers on saves that are already fine).
           ...(petBackfilled ? { pets } : {}),
@@ -1165,9 +1180,10 @@ export function growthInfo(stage, carePoints) {
 
 /** How fast each need drains per game-second (baseline, at 1x). */
 export const NEED_DRAIN = {
-  hunger: 0.45,
-  energy: 0.3,
-  happiness: 0.22,
+  hunger: 0.68,
+  energy: 0.45,
+  happiness: 0.33,
+  hygiene: 0.26,
 };
 
 /** Day/night need multipliers — the shared clock shapes the creature sim. */
