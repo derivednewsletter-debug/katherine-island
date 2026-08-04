@@ -14,6 +14,9 @@ export const RESOURCES = {
   herb: { label: 'Herbs', color: '#8fd694' },
   // Wood is gathered from trees with an axe — sellable for coins
   wood: { label: 'Wood', color: '#8d6b4b' },
+  // Pet care items — held and used on a pet
+  soap: { label: 'Soap', color: '#c9a9ff' },
+  medkit: { label: 'Medkit', color: '#ff7b7b' },
   // Coins — the shop currency (sell resources, buy seeds/tools)
   coin: { label: 'Coins', color: '#ffd700' },
 };

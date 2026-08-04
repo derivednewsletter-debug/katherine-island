@@ -6,9 +6,12 @@ import SvgIcon from './SvgIcon';
 
 // Gather + crop-harvest resources. Berry/fruit/herb/flower are feedable
 // treats (click to hold, then click the pet); shell/stone are plain.
-const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood'];
+const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood', 'soap', 'medkit'];
 const FEEDABLE = Object.keys(FEED_BY_RESOURCE);
-const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood' };
+// Hold-to-use care items (soap/medkit) — click the pet to apply them.
+const CAREABLE = ['soap', 'medkit'];
+const HOLDABLE = [...FEEDABLE, ...CAREABLE];
+const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood', soap: 'soap', medkit: 'medkit' };
 
 /**
  * Inventory HUD — reads the shared store and shows a glass chip per
@@ -66,8 +69,9 @@ export default function InventoryHud() {
       {ORDER.map((resource) => {
         const config = RESOURCES[resource];
         const isFeedable = FEEDABLE.includes(resource);
+        const isCare = CAREABLE.includes(resource);
         const isHeld = holding === resource;
-        const empty = isFeedable && (inventory[resource] ?? 0) < 1;
+        const empty = (isFeedable || isCare) && (inventory[resource] ?? 0) < 1;
         const chipStyle = {
           display: 'flex',
           alignItems: 'center',
@@ -93,17 +97,17 @@ export default function InventoryHud() {
             </span>
           </>
         );
-        // Feedable treats (berry/fruit/herb/flower) are hold-to-feed buttons;
-        // shell/stone stay plain divs so they don't become tab stops.
-        return isFeedable ? (
+        // Feedable treats (berry/fruit/herb/flower) and care items
+        // (soap/medkit) are hold-to-use buttons; shell/stone stay plain.
+        return isFeedable || isCare ? (
           <button
             key={resource}
             onClick={() => useGameStore.getState().toggleHolding(resource)}
             disabled={empty}
             title={
               isHeld
-                ? `Click the pet to feed it! ${config.label}`
-                : `Hold ${config.label.toLowerCase()} to feed the pet`
+                ? `Click the pet to use it! ${config.label}`
+                : `Hold ${config.label.toLowerCase()} to use on the pet`
             }
             style={{
               ...chipStyle,
@@ -206,7 +210,7 @@ export default function InventoryHud() {
         </div>
       )}
 
-         {holding && FEEDABLE.includes(holding) && (
+         {holding && HOLDABLE.includes(holding) && (
         <div
           style={{
             position: 'absolute',
@@ -229,7 +233,7 @@ export default function InventoryHud() {
           }}
         >
           <SvgIcon name={ICON_MAP[holding] || 'berry'} size={14} />
-          Click the pet to feed it!
+          {CAREABLE.includes(holding) ? 'Click the pet to use it!' : 'Click the pet to feed it!'}
         </div>
       )}
     </div>

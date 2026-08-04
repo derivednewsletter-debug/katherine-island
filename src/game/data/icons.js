@@ -22,6 +22,10 @@ export const ICONS = {
   axe: '<svg viewBox="0 0 24 24" fill="#6b4423"><path d="M18 2l4 4-8 8-4-4 8-8zm-8 8l-6 6v4l2-2 6-6z"/><rect x="6" y="14" width="4" height="2" fill="#6b4423"/></svg>',
   hoe: '<svg viewBox="0 0 24 24" fill="#8d6b4b"><path d="M15 3a3 3 0 0 1 6 0v6a3 3 0 0 1-3 3h-2v-3h1a1 1 0 0 0 0-2h-1V4h1a1 1 0 0 0 0-2h-1V3zm-7 8v10H6V11a2 2 0 0 0-2-2H2v-2h4a2 2 0 0 0 2 2z"/></svg>',
 
+  // Pet care items
+  soap: '<svg viewBox="0 0 24 24" fill="#c9a9ff"><rect x="6" y="9" width="12" height="11" rx="3" fill="#c9a9ff" stroke="#a985e0" strokeWidth="1"/><path d="M8 9V6a4 4 0 0 1 8 0v3" fill="none" stroke="#a985e0" strokeWidth="1.5"/><circle cx="10" cy="13" r="1" fill="#e6d9ff"/><circle cx="14" cy="15" r="1.2" fill="#e6d9ff"/><circle cx="12" cy="17" r="0.8" fill="#e6d9ff"/></svg>',
+  medkit: '<svg viewBox="0 0 24 24" fill="#ff7b7b"><rect x="5" y="6" width="14" height="14" rx="2" fill="#ff7b7b" stroke="#e05656" strokeWidth="1"/><rect x="9" y="2" width="6" height="5" rx="1" fill="#ff9b9b"/><path d="M12 9v6M9 12h6" stroke="#fff" strokeWidth="2"/></svg>',
+
   // UI
   shop: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M3 3h18v2H3zM5 7h14l-1 12H6l-1-12zm3 3v7h1v-7zm3 0v7h1v-7zm3 0v7h1v-7z"/></svg>',
   inventory: '<svg viewBox="0 0 24 24" fill="#4f8cff"><path d="M4 4h16v2H4zm2 4h12l-1 12H7l-1-12zm2 2v9h1v-9zm3 0v9h1v-9zm3 0v9h1v-9z"/></svg>',

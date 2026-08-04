@@ -60,6 +60,7 @@ export default function ShopHud() {
       test: (i) => i.kind === 'decoration' || i.kind === 'upgrade',
     },
     { id: 'eggs', title: 'Pet Eggs', icon: 'egg', test: (i) => i.kind === 'egg' },
+    { id: 'care', title: 'Pet Care', icon: 'medkit', test: (i) => i.kind === 'item' },
     { id: 'seeds', title: 'Seeds', icon: 'plant', test: (i) => i.kind === 'seed' && i.crop !== 'nightFlower' },
     {
       id: 'exotic',
@@ -270,7 +271,7 @@ export default function ShopHud() {
                           }}
                         >
                           <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <SvgIcon name={item.id.split(':')[0]} size={16} />
+                            <SvgIcon name={item.kind === 'item' ? item.resource : item.id.split(':')[0]} size={16} />
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: 12 }}>{item.name}</div>

@@ -158,7 +158,7 @@ export const SHOP_ITEMS = [
     desc: 'Chop down trees for wood. (You start with one!)',
     price: { coin: 8 },
   },
-  {
+{
     id: 'tool:hoe',
     kind: 'tool',
     tool: 'hoe',
@@ -166,6 +166,28 @@ export const SHOP_ITEMS = [
     emoji: '🌾',
     desc: 'Till soil for planting crops. (You start with one!)',
     price: { coin: 6 },
+  },
+
+  // ── Pet care items (hold to use on a pet) ──
+  {
+    id: 'petcare:soap',
+    kind: 'item',
+    resource: 'soap',
+    name: 'Soap',
+    emoji: '🧼',
+    desc: 'Bathe a pet to restore its hygiene.',
+    price: { shell: 4 },
+    count: 1,
+  },
+  {
+    id: 'petcare:medkit',
+    kind: 'item',
+    resource: 'medkit',
+    name: 'Medkit',
+    emoji: '💊',
+    desc: 'Heals a sick pet — restores hunger and hygiene.',
+    price: { shell: 6, herb: 2 },
+    count: 1,
   },
 
   // ── Sell-back prices (player can sell gathered resources for coins) ──
