@@ -109,11 +109,14 @@ export default function NeedsHud() {
   const moodIcon = sleeping ? 'sleep' : sick ? 'sick' : MOOD_ICONS[mood];
   const moodLabel = sleeping ? 'Sleeping' : sick ? 'Sick — use a medkit!' : MOODS[mood].label;
 
-  // Growth stage + progress — only the starter evolves; hatched pets have
-  // no growth bar (they're full-grown friends).
-  const stage = useGameStore((s) => (isStarter ? s.stage : null));
-  const carePoints = useGameStore((s) => (isStarter ? Math.floor(s.carePoints) : 0));
-  const growth = isStarter ? growthInfo(stage, carePoints) : null;
+  // Growth stage + progress — shown for the starter and every hatched pet.
+  const stage = useGameStore((s) =>
+    isStarter ? s.stage : s.pets.find((p) => p.id === s.selectedPetId)?.stage ?? null
+  );
+  const carePoints = useGameStore((s) =>
+    isStarter ? Math.floor(s.carePoints) : Math.floor(s.pets.find((p) => p.id === s.selectedPetId)?.carePoints ?? 0)
+  );
+  const growth = stage ? growthInfo(stage, carePoints) : null;
 
   // Feedable treats: whichever resource is held wins; otherwise default to
   // berries when any are available.

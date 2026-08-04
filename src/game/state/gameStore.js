@@ -702,6 +702,21 @@ export const useGameStore = create(
       return { carePoints };
     }),
 
+  /** Credit care points toward a hatched pet's next stage (per-pet addCare). */
+  addPetCare: (id, amount) =>
+    set((s) => ({
+      pets: s.pets.map((p) => {
+        if (p.id !== id) return p;
+        const current = GROWTH[p.stage];
+        if (!current || !current.next) return p;
+        const carePoints = p.carePoints + amount;
+        if (carePoints >= current.next.required) {
+          return { ...p, carePoints: 0, stage: current.next.id };
+        }
+        return { ...p, carePoints };
+      }),
+    })),
+
   // ── Build mode ──
   /** Enter build mode with a tool, or exit if it's already active. */
   togglePlacement: (tool) =>
@@ -782,8 +797,13 @@ export const useGameStore = create(
             name: PET_SPECIES[egg.species]?.label ?? 'Pet',
             pos: { ...home },
             home,
-            needs: { hunger: 85, energy: 90, happiness: 80 },
+            needs: { hunger: 85, energy: 90, happiness: 80, hygiene: 85 },
             sleeping: false,
+            stage: 'baby',
+            carePoints: 0,
+            ageDays: 0,
+            elderSince: null,
+            deceased: false,
           },
         ],
         namingPetId: petId,

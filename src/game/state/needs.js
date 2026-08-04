@@ -48,6 +48,14 @@ export function startNeedsSystem() {
     if (hunger > 70 && energy > 70 && happiness > 70) {
       useGameStore.getState().addCare(CARE_PER_GAME_SECOND * flush);
     }
+    // Hatched pets earn the same passive trickle when well cared for.
+    const wellCared = (n) => n && n.hunger > 70 && n.energy > 70 && n.happiness > 70;
+    for (const pet of state.pets) {
+      if (pet.deceased || pet.ranAway || pet.sleeping || isSick(pet.needs)) continue;
+      if (wellCared(pet.needs)) {
+        useGameStore.getState().addPetCare(pet.id, CARE_PER_GAME_SECOND * flush);
+      }
+    }
   });
 }
 
