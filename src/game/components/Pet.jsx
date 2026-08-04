@@ -264,6 +264,21 @@ export default function Pet({ petId }) {
       return;
     }
 
+    if (st.holding === 'soap') {
+      const ok = st.bathePet(petId);
+      setBubble(ok ? 'fresh + clean! ✨' : 'need soap…');
+      if (ok) burstHearts();
+      bubbleTimer.current = 1.5;
+      return;
+    }
+    if (st.holding === 'medkit') {
+      const ok = st.curePet(petId);
+      setBubble(ok ? 'all better! 💗' : 'need a medkit…');
+      if (ok) burstHearts();
+      bubbleTimer.current = 1.5;
+      return;
+    }
+
     petPause.current = 0.8;
     setBubble('hehe! ♥');
     bubbleTimer.current = 1.5;

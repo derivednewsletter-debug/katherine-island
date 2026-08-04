@@ -336,6 +336,22 @@ export default function Creature() {
       return;
     }
 
+    // Soap/medkit are used on THIS pet (the starter) via click.
+    if (held === 'soap') {
+      const ok = useGameStore.getState().bathePet('starter');
+      setBubble(ok ? 'fresh + clean! ✨' : 'need soap…');
+      if (ok) burstHearts();
+      bubbleTimer.current = 1.5;
+      return;
+    }
+    if (held === 'medkit') {
+      const ok = useGameStore.getState().curePet('starter');
+      setBubble(ok ? 'all better! 💗' : 'need a medkit…');
+      if (ok) burstHearts();
+      bubbleTimer.current = 1.5;
+      return;
+    }
+
     petPause.current = 0.8;
     setBubble('hehe! ♥');
     bubbleTimer.current = 1.5;
