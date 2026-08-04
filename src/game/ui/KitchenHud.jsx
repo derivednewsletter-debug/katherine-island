@@ -1,9 +1,15 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../state/gameStore';
-import { RECIPES, canCraft } from '../data/recipes';
+import { RECIPES, RECIPE_COST, canCraft } from '../data/recipes';
 import SvgIcon from './SvgIcon';
 
-const LABELS = { berry: 'berry', herb: 'herb', fruit: 'fruit', wood: 'wood' };
+const LABELS = {
+  berry: 'berry',
+  herb: 'herb',
+  fruit: 'fruit',
+  flower: 'flower',
+  wood: 'wood',
+};
 
 export default function KitchenHud() {
   const active = useGameStore((s) => s.activeAppliance);
@@ -40,7 +46,7 @@ export default function KitchenHud() {
               <div><div style={{ fontWeight: 800 }}>{recipe.name}</div><div style={{ fontSize: 11, opacity: 0.7 }}>Crafts 1 meal</div></div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, margin: '8px 0', fontSize: 11, opacity: 0.8 }}>
-              {Object.entries({ wood: 1, ...recipe.inputs }).map(([resource, amount]) => <span key={resource} style={{ padding: '2px 6px', borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>{amount} {LABELS[resource] ?? resource}</span>)}
+              {Object.entries({ ...RECIPE_COST[recipe.appliance], ...recipe.inputs }).map(([resource, amount]) => <span key={resource} style={{ padding: '2px 6px', borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>{amount} {LABELS[resource] ?? resource}</span>)}
             </div>
             <button disabled={!ready} onClick={() => useGameStore.getState().craftMeal(recipe.id)} style={{ width: '100%', padding: '7px 10px', border: 0, borderRadius: 9, cursor: ready ? 'pointer' : 'not-allowed', background: ready ? '#ffd166' : 'rgba(255,255,255,0.12)', color: ready ? '#4a3800' : 'rgba(255,255,255,0.45)', fontWeight: 800 }}>{ready ? 'Cook meal' : 'Need ingredients'}</button>
           </div>

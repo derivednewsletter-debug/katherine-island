@@ -6,12 +6,12 @@ import SvgIcon from './SvgIcon';
 
 // Gather + crop-harvest resources. Berry/fruit/herb/flower are feedable
 // treats (click to hold, then click the pet); shell/stone are plain.
-const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood', 'soap', 'medkit', 'toy', 'stew', 'grilled'];
+const ORDER = ['berry', 'shell', 'stone', 'flower', 'fruit', 'herb', 'wood', 'soap', 'medkit', 'toy', 'stew', 'grilled', 'porridge', 'herbalTea', 'fruitSkewers', 'roastedHerbs'];
 const FEEDABLE = Object.keys(FEED_BY_RESOURCE);
 // Hold-to-use care items (soap/medkit) — click the pet to apply them.
 const CAREABLE = ['soap', 'medkit'];
 const HOLDABLE = [...FEEDABLE, ...CAREABLE, 'toy'];
-const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood', soap: 'soap', medkit: 'medkit', toy: 'toy', stew: 'stew', grilled: 'grilled' };
+const ICON_MAP = { berry: 'berry', shell: 'shell', stone: 'stone', flower: 'flower', fruit: 'fruit', herb: 'herb', wood: 'wood', soap: 'soap', medkit: 'medkit', toy: 'toy', stew: 'stew', grilled: 'grilled', porridge: 'porridge', herbalTea: 'herbalTea', fruitSkewers: 'fruitSkewers', roastedHerbs: 'roastedHerbs' };
 
 /**
  * Inventory HUD — reads the shared store and shows a glass chip per

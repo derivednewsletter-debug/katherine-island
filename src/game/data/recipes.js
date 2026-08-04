@@ -14,6 +14,22 @@ export const RECIPES = {
       inputs: { berry: 2, herb: 1 },
       output: { stew: 1 },
     },
+    {
+      id: 'porridge',
+      name: 'Berry Porridge',
+      emoji: '🥣',
+      appliance: 'stove',
+      inputs: { berry: 3, fruit: 1 },
+      output: { porridge: 1 },
+    },
+    {
+      id: 'herbalTea',
+      name: 'Herbal Tea',
+      emoji: '🍵',
+      appliance: 'stove',
+      inputs: { herb: 2, flower: 1 },
+      output: { herbalTea: 1 },
+    },
   ],
   grill: [
     {
@@ -23,6 +39,22 @@ export const RECIPES = {
       appliance: 'grill',
       inputs: { fruit: 1, berry: 1 },
       output: { grilled: 1 },
+    },
+    {
+      id: 'fruitSkewers',
+      name: 'Fruit Skewers',
+      emoji: '🍡',
+      appliance: 'grill',
+      inputs: { fruit: 2, flower: 1 },
+      output: { fruitSkewers: 1 },
+    },
+    {
+      id: 'roastedHerbs',
+      name: 'Roasted Herb Bites',
+      emoji: '🥬',
+      appliance: 'grill',
+      inputs: { herb: 2, berry: 1 },
+      output: { roastedHerbs: 1 },
     },
   ],
 };

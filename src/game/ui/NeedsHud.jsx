@@ -49,7 +49,8 @@ export default function NeedsHud() {
   const carePoints = isStarter ? Math.floor(useGameStore.getState().carePoints) : Math.floor(selectedPet?.carePoints ?? 0);
 
   // Subscribe to frequently-changing values that can't be read from getState
-  const runawayPets = useGameStore((s) => s.pets.filter((p) => p.ranAway));
+  const runawayCount = useGameStore((s) => s.pets.reduce((count, p) => count + (p.ranAway ? 1 : 0), 0));
+  const firstRunawayId = useGameStore((s) => s.pets.find((p) => p.ranAway)?.id ?? null);
   const memorials = useGameStore((s) => s.memorials);
   const openRename = useGameStore((s) => s.openRename);
   const followingPetId = useGameStore((s) => s.followingPetId);
@@ -102,7 +103,7 @@ export default function NeedsHud() {
   const moodLabel = !selectedPetExists ? 'Choose a pet' : selectedPet?.ranAway ? 'Runaway — find me!' : sleeping ? 'Sleeping' : sick ? 'Sick — use a medkit!' : MOODS[mood].label;
 
   // Growth stage + progress
-  const growth = stage ? growthInfo(stage, carePoints) : null;
+  const growth = stage ? growthInfo(stage, carePoints, petSpecies) : null;
 
   // Feedable treats
   const holding = useGameStore((s) => s.holding);
@@ -136,9 +137,9 @@ export default function NeedsHud() {
           : {}),
       }}
     >
-       {runawayPets.length > 0 && (
+       {runawayCount > 0 && (
          <button
-           onClick={() => selectPet(runawayPets[0].id)}
+           onClick={() => firstRunawayId && selectPet(firstRunawayId)}
            title="Find and rescue your runaway pet"
            style={{
              display: 'flex',
@@ -158,7 +159,7 @@ export default function NeedsHud() {
              animation: 'pulse 1.6s infinite',
            }}
          >
-           🐾 Find {runawayPets.length} runaway pet{runawayPets.length > 1 ? 's' : ''}
+           🐾 Find {runawayCount} runaway pet{runawayCount > 1 ? 's' : ''}
          </button>
        )}
        <div

@@ -20,6 +20,10 @@ export const RESOURCES = {
   toy: { label: 'Toy', color: '#ff9e6b' },
   stew: { label: 'Stew', color: '#f0b27a' },
   grilled: { label: 'Grilled', color: '#c98a4b' },
+  porridge: { label: 'Porridge', color: '#f3d49b' },
+  herbalTea: { label: 'Herbal Tea', color: '#b9e39b' },
+  fruitSkewers: { label: 'Fruit Skewers', color: '#ff9e6b' },
+  roastedHerbs: { label: 'Roasted Herbs', color: '#9acb7c' },
   // Coins — the shop currency (sell resources, buy seeds/tools)
   coin: { label: 'Coins', color: '#ffd700' },
 };

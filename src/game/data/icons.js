@@ -28,6 +28,10 @@ export const ICONS = {
   toy: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#ff9e6b" stroke="#f7d36a" strokeWidth="2"/><path d="M7 7l10 10M17 7L7 17" stroke="#fff" strokeWidth="1.5" opacity=".8"/></svg>',
   stew: '<svg viewBox="0 0 24 24"><path d="M5 11h14v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" fill="#f0b27a" stroke="#8d6b4b"/><path d="M7 10c0-3 2-5 5-5s5 2 5 5" fill="none" stroke="#f5e0b5" strokeWidth="2"/><path d="M9 4c-.7-1 .5-2 0-3m4 3c-.7-1 .5-2 0-3m4 3c-.7-1 .5-2 0-3" fill="none" stroke="#fff" strokeWidth="1"/></svg>',
   grilled: '<svg viewBox="0 0 24 24"><path d="M5 8h14l-2 11H7z" fill="#c98a4b" stroke="#5d6d7e"/><path d="M7 11h10M7 14h10M8 17h8" stroke="#5d6d7e" strokeWidth="1.5"/><path d="M8 5c0-2 2-2 2 0m4 0c0-2 2-2 2 0" fill="none" stroke="#ff9e6b" strokeWidth="1.5"/></svg>',
+  porridge: '<svg viewBox="0 0 24 24"><path d="M5 10h14v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" fill="#f3d49b" stroke="#8d6b4b"/><path d="M7 10c1-3 3-4 5-4s4 1 5 4" fill="none" stroke="#fff3c9" strokeWidth="2"/><circle cx="10" cy="11" r="1" fill="#ff5d7e"/><circle cx="14" cy="10" r="1" fill="#b06ad4"/></svg>',
+  herbalTea: '<svg viewBox="0 0 24 24"><path d="M7 8h10v9a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3z" fill="#b9e39b" stroke="#6b9a4f"/><path d="M17 11h2a2 2 0 0 1 0 4h-2" fill="none" stroke="#6b9a4f"/><path d="M9 5c-1-2 1-2 0-4m4 4c-1-2 1-2 0-4" fill="none" stroke="#fff"/></svg>',
+  fruitSkewers: '<svg viewBox="0 0 24 24"><path d="M5 19L19 5" stroke="#8d6b4b" strokeWidth="2"/><circle cx="8" cy="16" r="3" fill="#ff5d7e"/><circle cx="12" cy="12" r="3" fill="#ffd166"/><circle cx="16" cy="8" r="3" fill="#b06ad4"/></svg>',
+  roastedHerbs: '<svg viewBox="0 0 24 24"><path d="M5 17c4-5 9-7 14-10" fill="none" stroke="#8d6b4b" strokeWidth="2"/><path d="M8 14c-2-2-2-4 0-5 2 1 2 3 0 5zm5-3c-2-2-2-4 0-5 2 1 2 3 0 5zm5-3c-2-2-2-4 0-5 2 1 2 3 0 5z" fill="#9acb7c"/></svg>',
 
   // UI
   stove: '<svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="12" rx="1" fill="#f0b27a" stroke="#8d6b4b"/><circle cx="9" cy="6" r="2" fill="#5d6d7e"/><circle cx="15" cy="6" r="2" fill="#5d6d7e"/><path d="M8 12h8M8 16h8" stroke="#fff" strokeWidth="1.5"/></svg>',

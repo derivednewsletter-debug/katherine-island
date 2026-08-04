@@ -26,6 +26,12 @@ export const PET_SPECIES = {
     eggSpot: '#d9a8d9',
     // Long floppy ears
     ear: 'long',
+    growth: {
+      baby: { label: 'Bunny Kit', emoji: '🐇', next: { id: 'child', required: 5 }, visual: { scale: 0.9, colors: { body: '#fff7fa', ears: '#f9d8e3' } } },
+      child: { label: 'Young Bunny', emoji: '🐰', next: { id: 'adult', required: 15 }, visual: { scale: 0.96, colors: { body: '#fff1f4' } } },
+      adult: { label: 'Bunny', emoji: '🐰', next: { id: 'elder', required: 40 }, visual: { scale: 1.04, colors: { body: '#ffe8ef', ears: '#efafc3' } } },
+      elder: { label: 'Elder Bunny', emoji: '🕊️', next: null },
+    },
     colors: {
       body: '#fff1f4',
       belly: '#ffffff',
@@ -46,6 +52,12 @@ export const PET_SPECIES = {
     eggSpot: '#e0a56a',
     // Pointy triangle ears
     ear: 'point',
+    growth: {
+      baby: { label: 'Kitten', emoji: '🐾', next: { id: 'child', required: 7 }, visual: { scale: 0.86, colors: { body: '#ffe8c7', ears: '#f5a96f' } } },
+      child: { label: 'Young Kitty', emoji: '🐱', next: { id: 'adult', required: 18 }, visual: { scale: 0.98, colors: { body: '#ffd9a8' } } },
+      adult: { label: 'Kitty', emoji: '🐱', next: { id: 'elder', required: 45 }, visual: { scale: 1.08, colors: { body: '#ffc27f', ears: '#f28e4b' } } },
+      elder: { label: 'Elder Kitty', emoji: '🕊️', next: null },
+    },
     colors: {
       body: '#ffd9a8',
       belly: '#fff3e0',
@@ -67,6 +79,12 @@ export const PET_SPECIES = {
     // No ears — instead a tiny orange beak
     ear: 'none',
     beak: true,
+    growth: {
+      baby: { label: 'Duckling', emoji: '🐥', next: { id: 'child', required: 4 }, visual: { scale: 0.82, colors: { body: '#fff0a0', belly: '#fffde0' } } },
+      child: { label: 'Fledgling', emoji: '🪶', next: { id: 'adult', required: 12 }, visual: { scale: 0.94, colors: { body: '#ffe066' } } },
+      adult: { label: 'Duck', emoji: '🦆', next: { id: 'elder', required: 30 }, visual: { scale: 1.02, colors: { body: '#f8cf3d', accent: '#f08b2c' } } },
+      elder: { label: 'Elder Duck', emoji: '🕊️', next: null },
+    },
     colors: {
       body: '#ffe066',
       belly: '#fff9c9',
@@ -75,6 +93,88 @@ export const PET_SPECIES = {
       cheeks: '#ffb3c6',
       leaf: '#7fb069',
       accent: '#ff9f43',
+    },
+  },
+  fox: {
+    label: 'Fox',
+    emoji: '🦊',
+    habitat: 'hill', // clever foxes of the uplands
+    dot: '#ff8c5c',
+    price: { berry: 10, shell: 8 },
+    eggColor: '#ffe3d6',
+    eggSpot: '#e8a58c',
+    // Pointy ears + a bushy tail marker
+    ear: 'point',
+    tail: 'bushy',
+    growth: {
+      baby: { label: 'Fox Kit', emoji: '🦊', next: { id: 'child', required: 8 }, visual: { scale: 0.84, colors: { body: '#ffad6d', belly: '#fff7ea' } } },
+      child: { label: 'Young Fox', emoji: '🦊', next: { id: 'adult', required: 20 }, visual: { scale: 0.97, colors: { body: '#ff9c50' } } },
+      adult: { label: 'Fox', emoji: '🦊', next: { id: 'elder', required: 50 }, visual: { scale: 1.1, colors: { body: '#e96e2f', ears: '#b8472f' } } },
+      elder: { label: 'Elder Fox', emoji: '🕊️', next: null },
+    },
+    colors: {
+      body: '#ff8c42',
+      belly: '#fff3e0',
+      ears: '#d95d39',
+      eyes: '#3a3a46',
+      cheeks: '#ffc2b0',
+      leaf: '#a8d69a',
+      accent: '#ffd9a8',
+    },
+  },
+  penguin: {
+    label: 'Penguin',
+    emoji: '🐧',
+    habitat: 'sand', // rocky shore dwellers
+    dot: '#7fd4ff',
+    price: { shell: 8, stone: 4 },
+    eggColor: '#e0f0ff',
+    eggSpot: '#8fb8d9',
+    // No ears — a beak and flippers instead
+    ear: 'none',
+    beak: true,
+    flippers: true,
+    growth: {
+      baby: { label: 'Penguin Chick', emoji: '🐧', next: { id: 'child', required: 6 }, visual: { scale: 0.84, colors: { body: '#8ca8bf', belly: '#f5fbff' } } },
+      child: { label: 'Juvenile Penguin', emoji: '🐧', next: { id: 'adult', required: 16 }, visual: { scale: 0.97, colors: { body: '#60788d' } } },
+      adult: { label: 'Penguin', emoji: '🐧', next: { id: 'elder', required: 42 }, visual: { scale: 1.08, colors: { body: '#263b4e', ears: '#203241' } } },
+      elder: { label: 'Elder Penguin', emoji: '🕊️', next: null },
+    },
+    colors: {
+      body: '#4a5a6a',
+      belly: '#ffffff',
+      ears: '#3a4a5a',
+      eyes: '#2a2a35',
+      cheeks: '#ffb3c6',
+      leaf: '#7fb069',
+      accent: '#ff9f43',
+    },
+  },
+  turtle: {
+    label: 'Turtle',
+    emoji: '🐢',
+    habitat: 'sand', // slow & steady beach pals
+    dot: '#9fd97a',
+    price: { shell: 10, berry: 6 },
+    eggColor: '#eef5e0',
+    eggSpot: '#b8d98a',
+    // No ears — a shell on its back
+    ear: 'none',
+    shell: true,
+    growth: {
+      baby: { label: 'Hatchling', emoji: '🐢', next: { id: 'child', required: 3 }, visual: { scale: 0.78, colors: { body: '#b6d98e', accent: '#cce5a1' } } },
+      child: { label: 'Young Turtle', emoji: '🐢', next: { id: 'adult', required: 10 }, visual: { scale: 0.94, colors: { body: '#9fc779' } } },
+      adult: { label: 'Turtle', emoji: '🐢', next: { id: 'elder', required: 36 }, visual: { scale: 1.12, colors: { body: '#719e52', accent: '#8cab5d' } } },
+      elder: { label: 'Elder Turtle', emoji: '🕊️', next: null },
+    },
+    colors: {
+      body: '#8fb96a',
+      belly: '#f5f0c9',
+      ears: '#6b9a4f',
+      eyes: '#2a2a35',
+      cheeks: '#c9e8a8',
+      leaf: '#7fb069',
+      accent: '#a8c97a',
     },
   },
 };

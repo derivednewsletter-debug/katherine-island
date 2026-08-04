@@ -46,7 +46,7 @@ export const SHOP_ITEMS = [
     kind: 'decoration',
     name: 'Stove',
     emoji: '🍲',
-    desc: 'Unlocks a stove for cooking hearty stews.',
+    desc: 'Unlocks a stove for stews, porridge, and herbal tea.',
     price: { wood: 6, stone: 4 },
   },
   {
@@ -54,7 +54,7 @@ export const SHOP_ITEMS = [
     kind: 'decoration',
     name: 'Grill',
     emoji: '🍖',
-    desc: 'Unlocks a grill for cooking grilled meals.',
+    desc: 'Unlocks a grill for grilled fruit, skewers, and herb bites.',
     price: { wood: 8, stone: 6 },
   },
   {

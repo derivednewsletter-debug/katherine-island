@@ -21,10 +21,22 @@ export default function InstancedField({ entries, parts }) {
   const count = entries.length;
 
   useLayoutEffect(() => {
-    const dummy = new THREE.Object3D();
-    const tmpPos = new THREE.Vector3();
-    const tmpQuat = new THREE.Quaternion();
-    const tmpScale = new THREE.Vector3();
+    // Reuse pre-allocated objects across layout effects to avoid GC pressure.
+    // The geometry cache (GEO_CACHE) already handles part reuse; this extends
+    // that principle to the per-frame scratch objects.
+    if (!InstancedField._dummy) {
+      InstancedField._dummy = new THREE.Object3D();
+      InstancedField._pos = new THREE.Vector3();
+      InstancedField._quat = new THREE.Quaternion();
+      InstancedField._scale = new THREE.Vector3();
+      InstancedField._euler = new THREE.Euler();
+    }
+    const dummy = InstancedField._dummy;
+    const tmpPos = InstancedField._pos;
+    const tmpQuat = InstancedField._quat;
+    const tmpScale = InstancedField._scale;
+    const tmpEuler = InstancedField._euler;
+
     const partMats = parts.map((p) =>
       new THREE.Matrix4().compose(
         new THREE.Vector3(...p.pos),
@@ -36,12 +48,7 @@ export default function InstancedField({ entries, parts }) {
     parts.forEach((p, pi) => {
       const mesh = refs.current[pi];
       if (!mesh) return;
-      // The GPU instance buffer is sized at mount (args count). If the
-      // entry list ever GROWS past it — e.g. the player plants more
-      // decorations than existed at boot — out-of-bounds setMatrixAt
-      // writes are silently dropped by typed arrays, so we must RESIZE
-      // the buffer (fresh InstancedBufferAttribute) and only then bump
-      // count. Shrink is safe: extra capacity is simply unused.
+      // Resize instance buffer if entries grew past mount-time capacity.
       if (entries.length > mesh.count) {
         mesh.instanceMatrix = new THREE.InstancedBufferAttribute(
           new Float32Array(entries.length * 16),
@@ -52,10 +59,11 @@ export default function InstancedField({ entries, parts }) {
       for (let i = 0; i < entries.length; i++) {
         const e = entries[i];
         tmpPos.set(e.x, e.y, e.z);
-        tmpQuat.setFromEuler(new THREE.Euler(0, e.rot, 0));
+        tmpEuler.set(0, e.rot, 0);
+        tmpQuat.setFromEuler(tmpEuler);
         tmpScale.setScalar(e.scale);
         dummy.matrix.compose(tmpPos, tmpQuat, tmpScale);
-        dummy.matrix.multiply(partMats[pi]); // part-local transform
+        dummy.matrix.multiply(partMats[pi]);
         mesh.setMatrixAt(i, dummy.matrix);
       }
       mesh.instanceMatrix.needsUpdate = true;

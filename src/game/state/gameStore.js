@@ -74,6 +74,10 @@ export const useGameStore = create(
     toy: 0,
     stew: 0,
     grilled: 0,
+    porridge: 0,
+    herbalTea: 0,
+    fruitSkewers: 0,
+    roastedHerbs: 0,
   },
 
   // ── Player (avatar controlled by the player with WASD) ──
@@ -691,7 +695,7 @@ export const useGameStore = create(
     set((s) => ({
       pets: s.pets.map((p) => {
         if (p.id !== id) return p;
-        const current = GROWTH[p.stage];
+        const current = growthConfig(p.stage, p.species);
         if (!current || !current.next) return p;
         const carePoints = (p.carePoints ?? 0) + amount;
         if (carePoints >= current.next.required) {
@@ -1060,7 +1064,7 @@ export const useGameStore = create(
       timeScale: 1,
       paused: false,
       currency: 10,
-      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0, toy: 0, stew: 0, grilled: 0 },
+      inventory: { berry: 3, shell: 0, stone: 0, wood: 0, flower: 0, fruit: 0, herb: 0, soap: 0, medkit: 0, toy: 0, stew: 0, grilled: 0, porridge: 0, herbalTea: 0, fruitSkewers: 0, roastedHerbs: 0 },
       needs: { hunger: 100, energy: 100, happiness: 100, hygiene: 100 },
       sick: false,
       playerPos: { row: SPAWN_POINT.row, col: SPAWN_POINT.col + 3 },
@@ -1393,10 +1397,14 @@ export const GROWTH = {
  * What the HUD should show for the current stage: progress toward the next
  * evolution, or `isMax` when fully grown. Returns null for unknown stages.
  */
-export function growthInfo(stage, carePoints) {
-  const config = GROWTH[stage];
+function growthConfig(stage, species) {
+  return PET_SPECIES[species]?.growth?.[stage] ?? GROWTH[stage];
+}
+
+export function growthInfo(stage, carePoints, species) {
+  const config = growthConfig(stage, species);
   if (!config) return null;
-  const next = config.next ? GROWTH[config.next.id] : null;
+  const next = config.next ? growthConfig(config.next.id, species) : null;
   return {
     emoji: config.emoji,
     label: config.label,
@@ -1444,6 +1452,10 @@ export const FEED_BY_RESOURCE = {
   flower: { happiness: 30 }, // a sweet bouquet
   stew: { hunger: 34, hygiene: 20, happiness: 10 },
   grilled: { hunger: 30, energy: 22, happiness: 8 },
+  porridge: { hunger: 42, energy: 8, happiness: 12 },
+  herbalTea: { energy: 38, hygiene: 12, happiness: 16 },
+  fruitSkewers: { hunger: 28, happiness: 30 },
+  roastedHerbs: { hunger: 18, energy: 34, happiness: 12 },
 };
 
 /** Mood display config keyed by mood id. */

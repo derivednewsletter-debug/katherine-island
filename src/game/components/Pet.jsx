@@ -26,7 +26,7 @@ function lerpAngle(a, b, t) {
   return a + diff * t;
 }
 
-/** A per-species ear/beak scaffold so each critter reads differently. */
+/** A per-species ear/beak/tail scaffold so each critter reads differently. */
 function SpeciesParts({ species, colors }) {
   if (species === 'kitty') {
     // Pointy triangle ears
@@ -43,11 +43,62 @@ function SpeciesParts({ species, colors }) {
       </>
     );
   }
+  if (species === 'fox') {
+    // Pointy upright ears + a big bushy tail
+    return (
+      <>
+        <mesh position={[-0.095, 0.56, 0]} rotation={[0.1, 0, 0.2]} castShadow>
+          <coneGeometry args={[0.045, 0.14, 4]} />
+          <meshToonMaterial color={colors.ears} />
+        </mesh>
+        <mesh position={[0.095, 0.56, 0]} rotation={[0.1, 0, -0.2]} castShadow>
+          <coneGeometry args={[0.045, 0.14, 4]} />
+          <meshToonMaterial color={colors.ears} />
+        </mesh>
+        <mesh position={[0, 0.16, -0.24]} castShadow>
+          <coneGeometry args={[0.07, 0.22, 6]} />
+          <meshToonMaterial color={colors.body} />
+        </mesh>
+        <mesh position={[0, 0.22, -0.3]} castShadow>
+          <sphereGeometry args={[0.045, 8, 8]} />
+          <meshToonMaterial color={colors.accent} />
+        </mesh>
+      </>
+    );
+  }
   if (species === 'duckling') {
     // No ears — just a little orange beak
     return (
       <mesh position={[0, 0.4, 0.16]} rotation={[0.5, 0, 0]} castShadow>
         <coneGeometry args={[0.035, 0.07, 5]} />
+        <meshToonMaterial color={colors.accent} />
+      </mesh>
+    );
+  }
+  if (species === 'penguin') {
+    // Beak + little flipper wings
+    return (
+      <>
+        <mesh position={[0, 0.38, 0.17]} rotation={[0.5, 0, 0]} castShadow>
+          <coneGeometry args={[0.03, 0.06, 5]} />
+          <meshToonMaterial color={colors.accent} />
+        </mesh>
+        <mesh position={[-0.16, 0.18, 0.05]} rotation={[0, 0, 0.25]} castShadow>
+          <coneGeometry args={[0.035, 0.16, 5]} />
+          <meshToonMaterial color={colors.ears} />
+        </mesh>
+        <mesh position={[0.16, 0.18, 0.05]} rotation={[0, 0, -0.25]} castShadow>
+          <coneGeometry args={[0.035, 0.16, 5]} />
+          <meshToonMaterial color={colors.ears} />
+        </mesh>
+      </>
+    );
+  }
+  if (species === 'turtle') {
+    // A domed shell on the back (no ears)
+    return (
+      <mesh position={[0, 0.3, -0.03]} castShadow>
+        <sphereGeometry args={[0.14, 16, 12]} />
         <meshToonMaterial color={colors.accent} />
       </mesh>
     );
@@ -104,7 +155,7 @@ export default function Pet({ petId }) {
   const sp = useGameStore.getState().pets.find((p) => p.id === petId);
   const species = sp?.species ?? 'bunny';
   const speciesColors = PET_SPECIES[species]?.colors ?? PET_SPECIES.bunny.colors;
-  const stageStyle = speciesStageStyle(stage, speciesColors);
+  const stageStyle = speciesStageStyle(stage, speciesColors, PET_SPECIES[species]?.growth?.[stage]);
   const colors = stageStyle.colors;
   const liveSick = sp?.sick || (sp?.needs?.hunger ?? 100) < 25 || (sp?.needs?.hygiene ?? 100) < 25;
   const visualColors = liveSick ? { ...colors, body: '#8fb89b', belly: '#b7d0b5', ears: '#739a7d', cheeks: '#9bb7a0' } : colors;
